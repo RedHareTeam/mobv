@@ -207,20 +207,6 @@ GET /weather/forecast?date=2026-07-01&lat=37.5665&lng=126.9780
 
 ## 앞으로 고려할 것들
 
-### P0 (출시 전 필수)
-
-- [ ] Firebase Auth 적용 (Google 로그인)
-- [ ] Firestore Security Rules 설계 및 적용
-- [ ] Flask 백엔드 Firebase ID Token 검증 추가
-- [ ] 계정 삭제 기능
-- [ ] 개인정보처리방침 작성
-
-### P1 (있으면 좋음)
-
-- [ ] 날짜 조율 기능 (Firestore `availabilities` 컬렉션)
-- [ ] 결과 웹 링크 공유
-- [ ] Railway 배포 환경 정리 (gunicorn 설정)
-
 ### 카테고리 관련
 
 - [x] **교집합 확인 후 카테고리 선택** (채택)
@@ -232,7 +218,7 @@ GET /weather/forecast?date=2026-07-01&lat=37.5665&lng=126.9780
 - [x] **자유 검색 지원** (MVP부터 지원)
   - "우동", "냉면", "브런치" 등 고정 카테고리 외 키워드 직접 입력 가능
   - 백엔드 이미 지원: `category`에 없는 값은 카카오 키워드 검색으로 그대로 넘어감
-  
+
 
 ## 카카오 로컬 API vs Google Places API 비교
 
