@@ -1,0 +1,8 @@
+flask
+flask-cors
+python-dotenv
+openai
+requests
+shapely
+pyproj
+gunicorn

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=yes">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:"Noto Sans KR",-apple-system,"Apple SD Gothic Neo",system-ui,sans-serif; }
+    body { width:100vw; height:100vh; overflow:hidden; }
+    #map { width:100%; height:100%; }
+    .pm { position:relative; width:30px; height:30px; cursor:pointer; }
+    .pm-num { width:30px; height:30px; border-radius:50%; background:#FF5F7E; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; box-shadow:0 2px 6px rgba(0,0,0,0.28); transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1); transform-origin:center; }
+    .pm:active .pm-num { transform:scale(0.78); transition-duration:0.06s; transition-timing-function:ease-in; }
+    .pm-name { position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:#fff; color:#1C1C2E; padding:3px 8px; border-radius:8px; font-size:11px; white-space:nowrap; max-width:110px; overflow:hidden; text-overflow:ellipsis; box-shadow:0 1px 4px rgba(0,0,0,0.14); pointer-events:none; }
+    .cm { padding:3px 9px; border-radius:10px; font-size:11px; font-weight:600; color:#fff; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,0.18); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var _appkey = new URLSearchParams(window.location.search).get('appkey') || '';
+    ['MapReadyChannel','PlaceTappedChannel'].forEach(function(ch) {
+      window[ch] = { postMessage: function(d) { window.parent.postMessage({__channel:ch,__data:String(d)}, '*'); } };
+    });
+    window.addEventListener('message', function(e) {
+      if (e.data && typeof e.data.__eval === 'string') { try { (0,eval)(e.data.__eval); } catch(ex) { console.error(ex); } }
+    });
+
+    var map;
+
+    (function() {
+      var s = document.createElement('script');
+      s.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + _appkey + '&autoload=false';
+      s.onload = function() {
+        kakao.maps.load(function() {
+          map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.5665,126.9780), level:7 });
+          MapReadyChannel.postMessage('ready');
+        });
+      };
+      document.head.appendChild(s);
+    })();
+
+    function initMapData(circles, places) {
+      var bounds = new kakao.maps.LatLngBounds();
+      circles.forEach(function(c) {
+        new kakao.maps.Circle({ map:map, center:new kakao.maps.LatLng(c.lat,c.lng), radius:c.radius, strokeWeight:2, strokeColor:c.color, strokeOpacity:0.9, fillColor:c.color, fillOpacity:0.15 });
+        var label = document.createElement('div');
+        label.className='cm'; label.style.background=c.color; label.innerText=c.userName;
+        new kakao.maps.CustomOverlay({ map:map, position:new kakao.maps.LatLng(c.lat,c.lng), content:label, yAnchor:0.5 });
+        var dLat=c.radius/111000, dLng=c.radius/(111000*Math.cos(c.lat*Math.PI/180));
+        bounds.extend(new kakao.maps.LatLng(c.lat+dLat,c.lng+dLng));
+        bounds.extend(new kakao.maps.LatLng(c.lat-dLat,c.lng-dLng));
+      });
+      places.forEach(function(p,i) {
+        var wrap=document.createElement('div'); wrap.className='pm';
+        var name=document.createElement('div'); name.className='pm-name'; name.innerText=p.name;
+        var num=document.createElement('div'); num.className='pm-num'; num.innerText=(i+1)+'';
+        wrap.appendChild(name); wrap.appendChild(num);
+        (function(idx){ wrap.addEventListener('click', function(){ PlaceTappedChannel.postMessage(idx+''); }); })(i);
+        new kakao.maps.CustomOverlay({ map:map, position:new kakao.maps.LatLng(p.lat,p.lng), content:wrap, yAnchor:0.5 });
+        bounds.extend(new kakao.maps.LatLng(p.lat,p.lng));
+      });
+      if (circles.length>0||places.length>0) map.setBounds(bounds,60);
+    }
+  </script>
+</body>
+</html>
