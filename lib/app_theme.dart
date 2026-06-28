@@ -1,41 +1,44 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // ── Primary — 웜 바이올렛 ────────────────────────────────────
-  static const primary = Color.fromARGB(255, 255, 155, 222);
-  static const primaryBg = Color.fromARGB(255, 255, 245, 255);
+  // ── Brand ───────────────────────────────────────────────────
+  static const primary = Color(0xFF5865F2);
+  static const primaryBg = Color(0xFFEFF1FF);
 
-  // ── Accent — 코랄 로즈 ──────────────────────────────────────
-  static const accent = Color(0xFFFF5F7E);
-  static const accentBg = Color(0xFFFFEEF2);
+  static const secondary = Color(0xFF5AD6C0);
+  static const secondaryBg = Color(0xFFEAFBF8);
+
+  static const accent = Color(0xFF2E9BC8);
+  static const accentBg = Color(0xFFEAF6FB);
 
   // ── Neutral ──────────────────────────────────────────────────
-  static const bg = Color(0xFFF8F8FA);
+  static const bg = Color(0xFFF4F5F8);
   static const surface = Colors.white;
-  static const textDark = Color(0xFF1C1C2E);
-  static const textMuted = Color(0xFF9898AA);
-  static const border = Color(0xFFEDEDF5);
+  static const textDark = Color(0xFF1C2350);
+  static const textBody = Color(0xFF3A4170);
+  static const textMuted = Color(0xFF9AA0BD);
+  static const border = Color(0xFFE6E8F0);
 
   // ── 상태별 색상 ──────────────────────────────────────────────
-  static const drawing = Color.fromARGB(255, 157, 142, 255); // 페리윙클
-  static const voting = Color(0xFFFFA040); // 웜 앰버
-  static const confirmed = Color(0xFF34D399); // 소프트 에메랄드
+  static const drawing = primary;
+  static const voting = accent;
+  static const confirmed = Color(0xFF2BB673);
 
   // ── 비활성 ───────────────────────────────────────────────────
-  static const disabled = Color(0xFFB8B4CC);
-  static const disabledBg = Color(0xFFF2F0FA);
+  static const disabled = Color(0xFFB8BCD0);
+  static const disabledBg = Color(0xFFEDEEFA);
 
   // ── 에러·경고 ────────────────────────────────────────────────
-  static const error = Color(0xFFFF4D67);
-  static const warning = Color(0xFFFFBB00);
-  static const warningDark = Color(0xFFCC9000);
+  static const error = Color(0xFFE5484D);
+  static const warning = Color(0xFFF2A63B);
+  static const warningDark = Color(0xFFB56F00);
 
   // ── 그래디언트 끝 색상 ───────────────────────────────────────
-  static const gradientEnd = Color(0xFFFF7BAC);
+  static const gradientEnd = accent;
 
   // ── 카드 배경 그래디언트 ─────────────────────────────────────
-  static const cardGradientStart = Color(0xFFFFF0FA); // 연분홍
-  static const cardGradientEnd   = Color(0xFFF0EEFF); // 연보라
+  static const cardGradientStart = primaryBg;
+  static const cardGradientEnd = secondaryBg;
 
   // ── 친밀도 단계별 색상 ────────────────────────────────────────
   static const intimacyTop = Color(0xFFFF9BDE); // 핑크    — 매우 친밀 (80+)
@@ -55,18 +58,20 @@ class AppTheme {
       seedColor: primary,
       primary: primary,
       secondary: accent,
+      surface: surface,
+      error: error,
     ),
 
     appBarTheme: const AppBarTheme(
-      backgroundColor: primary,
-      foregroundColor: Colors.white,
+      backgroundColor: bg,
+      foregroundColor: textDark,
       elevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
         fontFamily: 'Pretendard',
         fontSize: 17,
         fontWeight: FontWeight.w700,
-        color: Colors.white,
+        color: textDark,
         letterSpacing: -0.3,
       ),
     ),
@@ -77,47 +82,47 @@ class AppTheme {
         fontSize: 26,
         fontWeight: FontWeight.w800,
         letterSpacing: -0.5,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       headlineMedium: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       titleLarge: TextStyle(
         fontSize: 17,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.2,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       titleMedium: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       titleSmall: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       bodyLarge: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w400,
         height: 1.6,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       bodyMedium: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w400,
         height: 1.5,
-        color: Color(0xFF1C1C2E),
+        color: textBody,
       ),
       bodySmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w400,
         height: 1.4,
-        color: Color(0xFF9898AA),
+        color: textMuted,
       ),
       labelLarge: TextStyle(
         fontSize: 14,
@@ -128,7 +133,7 @@ class AppTheme {
         fontSize: 11,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.3,
-        color: Color(0xFF9898AA),
+        color: textMuted,
       ),
     ),
 
@@ -146,9 +151,7 @@ class AppTheme {
           fontWeight: FontWeight.w700,
           letterSpacing: 0.1,
         ),
-      ).copyWith(
-        elevation: WidgetStateProperty.all(0),
-      ),
+      ).copyWith(elevation: WidgetStateProperty.all(0)),
     ),
 
     textButtonTheme: TextButtonThemeData(
@@ -168,11 +171,11 @@ class AppTheme {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFEDEDF5)),
+        borderSide: const BorderSide(color: border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFEDEDF5)),
+        borderSide: const BorderSide(color: border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -181,7 +184,7 @@ class AppTheme {
       hintStyle: const TextStyle(
         fontFamily: 'Pretendard',
         fontSize: 14,
-        color: Color(0xFF9898AA),
+        color: textMuted,
       ),
     ),
 
@@ -190,13 +193,13 @@ class AppTheme {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFEDEDF5)),
+        side: const BorderSide(color: border),
       ),
       margin: EdgeInsets.zero,
     ),
 
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: const Color(0xFF1C1C2E),
+      backgroundColor: textDark,
       contentTextStyle: const TextStyle(
         fontFamily: 'Pretendard',
         fontSize: 13,
@@ -214,12 +217,12 @@ class AppTheme {
         fontFamily: 'Pretendard',
         fontSize: 17,
         fontWeight: FontWeight.w700,
-        color: Color(0xFF1C1C2E),
+        color: textDark,
       ),
       contentTextStyle: const TextStyle(
         fontFamily: 'Pretendard',
         fontSize: 14,
-        color: Color(0xFF9898AA),
+        color: textMuted,
         height: 1.6,
       ),
     ),

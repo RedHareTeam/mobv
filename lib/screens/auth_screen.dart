@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'package:mobv/app_theme.dart';
-import 'splash_screen.dart';
+import 'package:mobv/widgets/mobv_brand.dart';
 import 'room_list_screen.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -118,8 +118,17 @@ class _AuthScreenState extends State<AuthScreen> {
                     Expanded(
                       flex: 2,
                       child: Container(
-                        color: AppTheme.primary,
-                        child: const Center(child: MobvLogo(fontSize: 42)),
+                        color: const Color(0xFFF4F5F8),
+                        child: const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              MobvSymbol(size: 58),
+                              SizedBox(height: 16),
+                              MobvWordmark(height: 36),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
 

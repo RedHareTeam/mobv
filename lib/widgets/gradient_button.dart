@@ -38,8 +38,17 @@ class GradientButton extends StatelessWidget {
                   end: Alignment.centerRight,
                 )
               : null,
-          color: active ? null : AppTheme.disabled,
+          color: active ? null : AppTheme.disabledBg,
           borderRadius: borderRadius,
+          boxShadow: active
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.20),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
         ),
         child: Center(
           child: loading
@@ -82,7 +91,7 @@ class CircleForwardButton extends StatelessWidget {
         height: 38,
         decoration: BoxDecoration(
           color: active ? AppTheme.primary : AppTheme.disabled,
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: loading
             ? const Padding(

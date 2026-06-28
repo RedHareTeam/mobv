@@ -9,6 +9,7 @@ import '../services/room_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/glass_popup_menu.dart';
 import '../widgets/glassmorphic_container.dart';
+import '../widgets/mobv_brand.dart';
 import 'package:mobv/app_theme.dart';
 import 'auth_screen.dart';
 
@@ -211,14 +212,7 @@ class _RoomListScreenState extends State<RoomListScreen> {
                     automaticallyImplyLeading: false,
                     centerTitle: false,
                     titleSpacing: 20,
-                    title: const Text(
-                      'Mobv',
-                      style: TextStyle(
-                        fontFamily: 'Pacifico',
-                        fontSize: 26,
-                        color: AppTheme.primary,
-                      ),
-                    ),
+                    title: const MobvWordmark(height: 27),
                   ),
 
                   // 인사 + 닉네임
