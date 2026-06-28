@@ -1,0 +1,4 @@
+{
+  "KAKAO_JS_KEY": "YOUR_KAKAO_JAVASCRIPT_KEY",
+  "BASE_URL": "http://localhost:5000"
+}

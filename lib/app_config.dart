@@ -8,11 +8,6 @@ class AppConfig {
     return v.isNotEmpty ? v : (dotenv.env['KAKAO_JS_KEY'] ?? '');
   }
 
-  static String get kakaoRestKey {
-    const v = String.fromEnvironment('KAKAO_REST_KEY');
-    return v.isNotEmpty ? v : (dotenv.env['KAKAO_REST_KEY'] ?? '');
-  }
-
   static String get baseUrl {
     const v = String.fromEnvironment('BASE_URL');
     if (v.isNotEmpty) return v;

@@ -6,12 +6,14 @@ class KakaoMapWebView extends StatefulWidget {
   final Function(double lat, double lng) onCenterChanged;
   final Function(double lat, double lng, double radius) onCircleDrawn;
   final VoidCallback? onMapReady;
+  final String myCircleColor;
 
   const KakaoMapWebView({
     super.key,
     required this.kakaoApiKey,
     required this.onCenterChanged,
     required this.onCircleDrawn,
+    required this.myCircleColor,
     this.onMapReady,
   });
 
@@ -22,17 +24,35 @@ class KakaoMapWebView extends StatefulWidget {
 class KakaoMapWebViewState extends State<KakaoMapWebView> {
   PlatformHtmlViewController? _ctrl;
 
-  void updateMyCircle(double lat, double lng, double radius, String userName) {
-    final enc = Uri.encodeComponent(userName);
-    _ctrl?.runJavaScript(
-        'updateMyCircle($lat,$lng,$radius,decodeURIComponent("$enc"))');
+  void setMyColor(String color) {
+    _ctrl?.runJavaScript('setMyColor("$color")');
   }
 
-  void updatePartnerCircle(String partnerId, double lat, double lng,
-      double radius, String userName, String color) {
+  void updateMyCircle(
+    double lat,
+    double lng,
+    double radius,
+    String userName,
+    String color,
+  ) {
     final enc = Uri.encodeComponent(userName);
     _ctrl?.runJavaScript(
-        'updatePartnerCircle("$partnerId",$lat,$lng,$radius,decodeURIComponent("$enc"),"$color")');
+      'updateMyCircle($lat,$lng,$radius,decodeURIComponent("$enc"),"$color")',
+    );
+  }
+
+  void updatePartnerCircle(
+    String partnerId,
+    double lat,
+    double lng,
+    double radius,
+    String userName,
+    String color,
+  ) {
+    final enc = Uri.encodeComponent(userName);
+    _ctrl?.runJavaScript(
+      'updatePartnerCircle("$partnerId",$lat,$lng,$radius,decodeURIComponent("$enc"),"$color")',
+    );
   }
 
   void clearPartnerCircle(String partnerId) {
@@ -57,9 +77,10 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
 
   void addMessage(String userId, String userName, String message) {
     final encName = Uri.encodeComponent(userName);
-    final encMsg  = Uri.encodeComponent(message);
+    final encMsg = Uri.encodeComponent(message);
     _ctrl?.runJavaScript(
-        'addMessage("$userId",decodeURIComponent("$encName"),decodeURIComponent("$encMsg"))');
+      'addMessage("$userId",decodeURIComponent("$encName"),decodeURIComponent("$encMsg"))',
+    );
   }
 
   @override
@@ -67,7 +88,8 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
     return PlatformHtmlView(
       key: const ValueKey('kakao-map-webview'),
       html: _buildHtml(),
-      webUrl: '/kakao_map_bridge.html?appkey=${widget.kakaoApiKey}',
+      webUrl:
+          '/kakao_map_bridge.html?appkey=${widget.kakaoApiKey}&myColor=${Uri.encodeComponent(widget.myCircleColor)}',
       channels: {
         'CircleDrawnChannel': (msg) {
           final parts = msg.split(',');
@@ -84,7 +106,8 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
     );
   }
 
-  String _buildHtml() => '''
+  String _buildHtml() =>
+      '''
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -122,7 +145,8 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
     var canvas = document.getElementById('canvas');
     var ctx = canvas.getContext('2d');
     var overlayContainer = document.getElementById('overlay-container');
-    var circles = { my: { lat:null,lng:null,radius:null,userName:'',color:'#9D8EFF',messages:[] }, partners:{} };
+    var myColor = '${widget.myCircleColor}';
+    var circles = { my: { lat:null,lng:null,radius:null,userName:'',color:myColor,messages:[] }, partners:{} };
     var partnerCircleObjects = {};
     var _currLocOverlay = null;
 
@@ -130,16 +154,16 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
       Console.postMessage('kakao maps ready');
       canvas.width = window.innerWidth; canvas.height = window.innerHeight;
       map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.5665,126.9780), level:7 });
-      myCircle = new kakao.maps.Circle({ map:null, center:new kakao.maps.LatLng(37.5665,126.9780), radius:3000, strokeWeight:2, strokeColor:'#9D8EFF', strokeOpacity:0.8, fillColor:'#9D8EFF', fillOpacity:0.2 });
+      myCircle = new kakao.maps.Circle({ map:null, center:new kakao.maps.LatLng(37.5665,126.9780), radius:3000, strokeWeight:2, strokeColor:myColor, strokeOpacity:0.8, fillColor:myColor, fillOpacity:0.2 });
       kakao.maps.event.addListener(map,'center_changed',updateAllOverlays);
       kakao.maps.event.addListener(map,'zoom_changed',function(){pinch=null;overlayContainer.style.opacity='1';updateAllOverlays();});
       var mapEl=document.getElementById('map');
       var pinch=null;
       function tdist(a,b){var dx=a.clientX-b.clientX,dy=a.clientY-b.clientY;return Math.sqrt(dx*dx+dy*dy);}
       mapEl.addEventListener('touchstart',function(e){if(e.touches.length===2){pinch={dist:tdist(e.touches[0],e.touches[1])};overlayContainer.style.opacity='0';}},{passive:true});
-      canvas.addEventListener('touchstart',function(e){if(!isDrawMode)return;e.preventDefault();isDrawing=true;drawnPoints=[];ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();ctx.strokeStyle='rgba(157,142,255,0.7)';ctx.lineWidth=3;ctx.lineCap='round';var t=e.touches[0],rect=canvas.getBoundingClientRect();ctx.moveTo(t.clientX-rect.left,t.clientY-rect.top);drawnPoints.push({x:t.clientX-rect.left,y:t.clientY-rect.top});},{passive:false});
+      canvas.addEventListener('touchstart',function(e){if(!isDrawMode)return;e.preventDefault();isDrawing=true;drawnPoints=[];ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();ctx.strokeStyle=hexToRgba(circles.my.color,0.7);ctx.lineWidth=3;ctx.lineCap='round';var t=e.touches[0],rect=canvas.getBoundingClientRect();ctx.moveTo(t.clientX-rect.left,t.clientY-rect.top);drawnPoints.push({x:t.clientX-rect.left,y:t.clientY-rect.top});},{passive:false});
       canvas.addEventListener('touchmove',function(e){if(!isDrawMode||!isDrawing)return;e.preventDefault();var t=e.touches[0],rect=canvas.getBoundingClientRect();ctx.lineTo(t.clientX-rect.left,t.clientY-rect.top);ctx.stroke();drawnPoints.push({x:t.clientX-rect.left,y:t.clientY-rect.top});},{passive:false});
-      canvas.addEventListener('touchend',function(e){if(!isDrawMode||!isDrawing)return;isDrawing=false;if(drawnPoints.length<5)return;var cx=0,cy=0;drawnPoints.forEach(function(p){cx+=p.x;cy+=p.y;});cx/=drawnPoints.length;cy/=drawnPoints.length;var avgR=0;drawnPoints.forEach(function(p){avgR+=Math.sqrt((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy));});avgR/=drawnPoints.length;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();ctx.arc(cx,cy,avgR,0,2*Math.PI);ctx.strokeStyle='rgba(157,142,255,0.9)';ctx.lineWidth=2;ctx.stroke();setTimeout(function(){ctx.clearRect(0,0,canvas.width,canvas.height);var proj=map.getProjection();var centerLatLng=proj.coordsFromContainerPoint(new kakao.maps.Point(cx,cy));var edgeLatLng=proj.coordsFromContainerPoint(new kakao.maps.Point(cx+avgR,cy));var R=6371000,dLat=(edgeLatLng.getLat()-centerLatLng.getLat())*Math.PI/180,dLng=(edgeLatLng.getLng()-centerLatLng.getLng())*Math.PI/180,a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(centerLatLng.getLat()*Math.PI/180)*Math.cos(edgeLatLng.getLat()*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);var radiusMeters=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));radiusMeters=Math.max(500,Math.min(20000,radiusMeters));myCircle.setPosition(centerLatLng);myCircle.setRadius(radiusMeters);myCircle.setMap(map);CircleDrawnChannel.postMessage(centerLatLng.getLat()+','+centerLatLng.getLng()+','+radiusMeters);},300);},{passive:false});
+      canvas.addEventListener('touchend',function(e){if(!isDrawMode||!isDrawing)return;isDrawing=false;if(drawnPoints.length<5)return;var cx=0,cy=0;drawnPoints.forEach(function(p){cx+=p.x;cy+=p.y;});cx/=drawnPoints.length;cy/=drawnPoints.length;var avgR=0;drawnPoints.forEach(function(p){avgR+=Math.sqrt((p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy));});avgR/=drawnPoints.length;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();ctx.arc(cx,cy,avgR,0,2*Math.PI);ctx.strokeStyle=hexToRgba(circles.my.color,0.9);ctx.lineWidth=2;ctx.stroke();setTimeout(function(){ctx.clearRect(0,0,canvas.width,canvas.height);var proj=map.getProjection();var centerLatLng=proj.coordsFromContainerPoint(new kakao.maps.Point(cx,cy));var edgeLatLng=proj.coordsFromContainerPoint(new kakao.maps.Point(cx+avgR,cy));var R=6371000,dLat=(edgeLatLng.getLat()-centerLatLng.getLat())*Math.PI/180,dLng=(edgeLatLng.getLng()-centerLatLng.getLng())*Math.PI/180,a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(centerLatLng.getLat()*Math.PI/180)*Math.cos(edgeLatLng.getLat()*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);var radiusMeters=R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));radiusMeters=Math.max(500,Math.min(20000,radiusMeters));myCircle.setPosition(centerLatLng);myCircle.setRadius(radiusMeters);myCircle.setMap(map);CircleDrawnChannel.postMessage(centerLatLng.getLat()+','+centerLatLng.getLng()+','+radiusMeters);},300);},{passive:false});
       document.addEventListener('contextmenu',function(e){e.preventDefault();});
       MapReadyChannel.postMessage('ready');
     });
@@ -152,7 +176,8 @@ class KakaoMapWebViewState extends State<KakaoMapWebView> {
     function renderBubbles(cd,sp,topY){var wrap=document.createElement('div');wrap.className='bubble-wrap';wrap.style.left=sp.x+'px';wrap.style.top=(topY-4)+'px';var nt=document.createElement('div');nt.className='name-tag';nt.innerText=cd.userName;wrap.appendChild(nt);var msgs=cd.messages.slice(-4);msgs.forEach(function(msg,i){var op=msgs.length===1?1.0:0.25+(i/(msgs.length-1))*0.75;var b=document.createElement('div');b.className='bubble';b.style.background=hexToRgba(cd.color,0.85);b.style.opacity=op;b.innerText=msg;wrap.insertBefore(b,nt);});overlayContainer.appendChild(wrap);}
     function renderDirectionPin(cd,lat,lng){var edge=getEdgePosition(getScreenPos(lat,lng));var pin=document.createElement('div');pin.className='direction-pin';pin.style.background=cd.color;pin.style.left=edge.x+'px';pin.style.top=edge.y+'px';var init=document.createElement('span');init.innerText=cd.userName?cd.userName[0]:'?';pin.appendChild(init);var ne=document.createElement('div');ne.className='pin-name';ne.innerText=cd.userName;pin.appendChild(ne);if(cd.messages.length>0){var me=document.createElement('div');me.className='pin-msg';me.innerText=cd.messages[cd.messages.length-1];pin.appendChild(me);}function pressIn(){pin.style.transform='translate(-50%,-50%) scale(0.82)';pin.style.transitionDuration='0.06s';pin.style.transitionTimingFunction='ease-in';}function pressOut(){pin.style.transform='translate(-50%,-50%) scale(1)';pin.style.transitionDuration='0.32s';pin.style.transitionTimingFunction='cubic-bezier(0.34,1.56,0.64,1)';}pin.addEventListener('touchstart',pressIn,{passive:true});pin.addEventListener('touchend',function(){pressOut();map.panTo(new kakao.maps.LatLng(lat,lng));},{passive:true});pin.addEventListener('touchcancel',pressOut,{passive:true});pin.addEventListener('mousedown',pressIn);pin.addEventListener('mouseup',function(){pressOut();map.panTo(new kakao.maps.LatLng(lat,lng));});pin.addEventListener('mouseleave',pressOut);overlayContainer.appendChild(pin);}
     function getEdgePosition(sp){var W=window.innerWidth,H=window.innerHeight,cx=W/2,cy=H/2,dx=sp.x-cx,dy=sp.y-cy,ml=60,mr=60,mt=140,mb=175,rx=W-mr-cx,lx=ml-cx,topY=mt-cy,botY=H-mb-cy,sx=dx!==0?(dx>0?rx:lx)/dx:Infinity,sy=dy!==0?(dy>0?botY:topY)/dy:Infinity,s=Math.min(Math.abs(sx),Math.abs(sy));return{x:Math.max(ml,Math.min(W-mr,cx+dx*s)),y:Math.max(mt,Math.min(H-mb,cy+dy*s))};}
-    function updateMyCircle(lat,lng,radius,userName){circles.my.lat=lat;circles.my.lng=lng;circles.my.radius=radius;circles.my.userName=userName;myCircle.setPosition(new kakao.maps.LatLng(lat,lng));myCircle.setRadius(radius);myCircle.setMap(map);updateAllOverlays();}
+    function setMyColor(color){if(!color)return;circles.my.color=color;if(myCircle)myCircle.setOptions({strokeColor:color,fillColor:color});updateAllOverlays();}
+    function updateMyCircle(lat,lng,radius,userName,color){if(color){circles.my.color=color;myCircle.setOptions({strokeColor:color,fillColor:color});}circles.my.lat=lat;circles.my.lng=lng;circles.my.radius=radius;circles.my.userName=userName;myCircle.setPosition(new kakao.maps.LatLng(lat,lng));myCircle.setRadius(radius);myCircle.setMap(map);updateAllOverlays();}
     function clearPartnerCircle(partnerId){if(partnerCircleObjects[partnerId]){partnerCircleObjects[partnerId].setMap(null);delete partnerCircleObjects[partnerId];}delete circles.partners[partnerId];updateAllOverlays();}
     function updatePartnerCircle(partnerId,lat,lng,radius,userName,color){if(!circles.partners[partnerId])circles.partners[partnerId]={lat:null,lng:null,radius:null,userName:'',color:color,messages:[]};var c=circles.partners[partnerId];c.lat=lat;c.lng=lng;c.radius=radius;c.userName=userName;c.color=color;if(partnerCircleObjects[partnerId]){partnerCircleObjects[partnerId].setPosition(new kakao.maps.LatLng(lat,lng));partnerCircleObjects[partnerId].setRadius(radius);}else{partnerCircleObjects[partnerId]=new kakao.maps.Circle({map:map,center:new kakao.maps.LatLng(lat,lng),radius:radius,strokeWeight:2,strokeColor:color,strokeOpacity:0.8,fillColor:color,fillOpacity:0.2});}updateAllOverlays();}
     function addMessage(userId,userName,message){var cd=null;if(circles.my.userName===userName){cd=circles.my;}else{var keys=Object.keys(circles.partners);for(var i=0;i<keys.length;i++){if(circles.partners[keys[i]].userName===userName){cd=circles.partners[keys[i]];break;}}if(!cd&&circles.partners[userId])cd=circles.partners[userId];}if(!cd)return;cd.messages.push(message);if(cd.messages.length>4)cd.messages.shift();updateAllOverlays();setTimeout(function(){cd.messages.shift();updateAllOverlays();},5000);}

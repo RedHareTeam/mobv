@@ -14,6 +14,8 @@
 .env
 .env.*
 !.env.example
+.dart_defines/*.json
+!.dart_defines/*.example.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart

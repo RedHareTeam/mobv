@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../app_config.dart';
 import 'package:geolocator/geolocator.dart';
@@ -10,11 +8,12 @@ import 'package:http/http.dart' as http;
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../constants.dart';
 import '../widgets/app_dialog.dart';
-import '../widgets/kakao_map_webview.dart';
 import '../widgets/glassmorphic_container.dart';
+import '../widgets/kakao_map_webview.dart';
 import '../widgets/gradient_button.dart';
+import '../services/auth_service.dart';
 import '../services/circle_service.dart';
-import '../services/room_service.dart';
+import '../services/appointment_service.dart';
 import 'place_screen.dart';
 import 'package:mobv/app_theme.dart';
 
@@ -37,8 +36,9 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  final _authService = AuthService();
   final _circleService = CircleService();
-  final _roomService = RoomService();
+  final _roomService = AppointmentService();
   final _mapKey = GlobalKey<KakaoMapWebViewState>();
 
   final List<StreamSubscription> _subs = [];
@@ -58,6 +58,7 @@ class _MapScreenState extends State<MapScreen> {
   DateTime? _appointmentDate;
   Map<String, dynamic>? _weatherInfo;
   Map<String, dynamic>? _lastRoom;
+  int? _myProfileColorValue;
 
   bool _isDrawMode = false;
   bool _isRequesting = false;
@@ -65,23 +66,12 @@ class _MapScreenState extends State<MapScreen> {
   bool _mapReady = false;
   bool _hasIntersection = false;
 
-  int _processedMsgCount = 0;
-  final List<Map<String, dynamic>> _pendingMessages = [];
-
-  // 파트너 색상 (최대 3명 추가 지원)
-  static const List<String> _partnerColors = [
-    '#FF9BDE',
-    '#34D399',
-    '#FBBF24',
-    '#60A5FA',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _watchRoom();
+    _watchMyProfileColor();
+    _watchAppointment();
     _watchPartners();
-    _watchMessages();
   }
 
   @override
@@ -93,14 +83,33 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
-  // ── 방 상태 감지 ──────────────────────────────────────────
+  // ── 약속 상태 감지 ──────────────────────────────────────────
 
-  void _watchRoom() {
-    final sub = _roomService.watchRoom(widget.roomId).listen((room) {
-      if (room == null || !mounted || _isNavigating) return;
+  void _watchMyProfileColor() {
+    final sub = _authService.watchUserInfo(widget.myUserId).listen((info) {
+      final colorValue = (info?['profileColor'] as num?)?.toInt();
+      if (colorValue == null || colorValue == _myProfileColorValue) return;
+      setState(() => _myProfileColorValue = colorValue);
+      _syncMyColorToMap();
+    });
+    _subs.add(sub);
+  }
+
+  void _watchAppointment() {
+    final sub = _roomService.watchAppointment(widget.roomId).listen((room) {
+      if (!mounted || _isNavigating) return;
+      if (room == null) {
+        _isNavigating = true;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('약속이 삭제되어 홈으로 돌아갑니다')));
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
       _lastRoom = room;
       final status = room['status'] as String? ?? '';
       final members = List<String>.from(room['members'] ?? []);
+      _syncMyColorToMap();
 
       // 약속 날짜 업데이트
       final dateTs = room['appointmentDate'];
@@ -195,19 +204,13 @@ class _MapScreenState extends State<MapScreen> {
               });
               _updateIntersectionState();
               if (_mapReady) {
-                final colorIdx =
-                    widget.members
-                        .where((id) => id != widget.myUserId)
-                        .toList()
-                        .indexOf(memberId) %
-                    _partnerColors.length;
                 _mapKey.currentState?.updatePartnerCircle(
                   memberId,
                   _partnerCircles[memberId]!['lat'] as double,
                   _partnerCircles[memberId]!['lng'] as double,
                   _partnerCircles[memberId]!['radius'] as double,
                   _partnerCircles[memberId]!['userName'] as String,
-                  _partnerColors[colorIdx],
+                  _memberColorHex(memberId),
                 );
               }
             } else {
@@ -221,43 +224,80 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _watchMessages() {
-    final sub = _circleService.watchMessages(roomId: widget.roomId).listen((
-      messages,
-    ) {
-      if (_processedMsgCount > messages.length)
-        _processedMsgCount = messages.length;
-      final newMessages = messages.sublist(_processedMsgCount);
-      _processedMsgCount = messages.length;
-      for (final msg in newMessages) {
-        if (msg['userId'] == widget.myUserId) continue;
-        if (_mapReady) {
-          _mapKey.currentState?.addMessage(
-            msg['userId'],
-            msg['userName'],
-            msg['message'],
-          );
-        } else {
-          _pendingMessages.add(msg);
-        }
-      }
-    });
-    _subs.add(sub);
+  String get _myColorHex => _memberColorHex(widget.myUserId);
+
+  String _memberName(String userId) {
+    if (userId == widget.myUserId) {
+      final myName = widget.myUserName.trim();
+      return myName.isEmpty ? '나' : myName;
+    }
+
+    final memberProfiles = Map<String, dynamic>.from(
+      _lastRoom?['memberProfiles'] as Map? ?? {},
+    );
+    final profile = Map<String, dynamic>.from(
+      memberProfiles[userId] as Map? ?? {},
+    );
+    final legacyNames = Map<String, dynamic>.from(
+      _lastRoom?['memberNames'] as Map? ?? {},
+    );
+    final profileName = profile['name']?.toString().trim();
+    if (profileName != null && profileName.isNotEmpty) return profileName;
+
+    final legacyName = legacyNames[userId]?.toString().trim();
+    if (legacyName != null && legacyName.isNotEmpty) return legacyName;
+
+    final circleName = _partnerCircles[userId]?['userName']?.toString().trim();
+    if (circleName != null && circleName.isNotEmpty) return circleName;
+
+    return '멤버';
+  }
+
+  String _memberColorHex(String userId) {
+    if (userId == widget.myUserId && _myProfileColorValue != null) {
+      return _colorValueToHex(_myProfileColorValue!);
+    }
+
+    final memberProfiles = Map<String, dynamic>.from(
+      _lastRoom?['memberProfiles'] as Map? ?? {},
+    );
+    final profile = Map<String, dynamic>.from(
+      memberProfiles[userId] as Map? ?? {},
+    );
+    final legacyColors = Map<String, dynamic>.from(
+      _lastRoom?['memberColors'] as Map? ?? {},
+    );
+    final stored = profile['color'] ?? legacyColors[userId];
+    final value = stored is num
+        ? stored.toInt()
+        : _authService.fallbackProfileColor(userId);
+    return _colorValueToHex(value);
+  }
+
+  String _colorValueToHex(int value) {
+    final rgb = value & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  void _syncMyColorToMap() {
+    if (!_mapReady) return;
+    _mapKey.currentState?.setMyColor(_myColorHex);
+    if (_myCircleDrawn) {
+      _mapKey.currentState?.updateMyCircle(
+        _myLat,
+        _myLng,
+        _myRadius,
+        widget.myUserName,
+        _myColorHex,
+      );
+    }
   }
 
   // ── 지도 준비 완료 콜백 ───────────────────────────────────
 
   Future<void> _onMapReady() async {
     setState(() => _mapReady = true);
-
-    for (final msg in _pendingMessages) {
-      _mapKey.currentState?.addMessage(
-        msg['userId'],
-        msg['userName'],
-        msg['message'],
-      );
-    }
-    _pendingMessages.clear();
+    _syncMyColorToMap();
 
     // 내 원 복원
     final myData = await _circleService.getMyCircle(
@@ -275,7 +315,13 @@ class _MapScreenState extends State<MapScreen> {
         _myCircleDrawn = true;
         _circleChecked = true;
       });
-      _mapKey.currentState?.updateMyCircle(lat, lng, radius, widget.myUserName);
+      _mapKey.currentState?.updateMyCircle(
+        lat,
+        lng,
+        radius,
+        widget.myUserName,
+        _myColorHex,
+      );
       _mapKey.currentState?.setCenter(lat, lng);
       _showLocationDot();
     } else {
@@ -297,7 +343,7 @@ class _MapScreenState extends State<MapScreen> {
           data['lng'] as double,
           data['radius'] as double,
           data['userName'] as String,
-          _partnerColors[i % _partnerColors.length],
+          _memberColorHex(id),
         );
       }
     }
@@ -312,8 +358,9 @@ class _MapScreenState extends State<MapScreen> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever)
+          permission == LocationPermission.deniedForever) {
         return null;
+      }
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.low,
@@ -364,31 +411,25 @@ class _MapScreenState extends State<MapScreen> {
       _myCircleDrawn = true;
     });
     _mapKey.currentState?.setDrawMode(false);
-    _mapKey.currentState?.updateMyCircle(lat, lng, radius, widget.myUserName);
+    _mapKey.currentState?.updateMyCircle(
+      lat,
+      lng,
+      radius,
+      widget.myUserName,
+      _myColorHex,
+    );
 
-    final msg = '${widget.myUserName}님이 구역을 설정했어요';
-    _mapKey.currentState?.addMessage(widget.myUserId, widget.myUserName, msg);
     _updateIntersectionState();
 
-    // 원 저장 완료 후 메시지 전송 — 상대방에서 핀이 생긴 뒤 메시지가 도착하도록 순서 보장
     _saveTimer?.cancel();
-    _circleService
-        .saveMyCircle(
-          roomId: widget.roomId,
-          userId: widget.myUserId,
-          userName: widget.myUserName,
-          lat: lat,
-          lng: lng,
-          radius: radius,
-        )
-        .then((_) {
-          _circleService.sendMessage(
-            roomId: widget.roomId,
-            userId: widget.myUserId,
-            userName: widget.myUserName,
-            message: msg,
-          );
-        });
+    _circleService.saveMyCircle(
+      roomId: widget.roomId,
+      userId: widget.myUserId,
+      userName: widget.myUserName,
+      lat: lat,
+      lng: lng,
+      radius: radius,
+    );
   }
 
   void _toggleDrawMode() {
@@ -503,10 +544,9 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => _isRequesting = true);
 
     try {
-      final roomData = await _roomService.getRoom(widget.roomId) ?? {};
+      final roomData = await _roomService.getAppointment(widget.roomId) ?? {};
       final searchQuery = roomData['searchQuery'] ?? '맛집';
       final mood = List<String>.from(roomData['mood'] ?? []);
-      final intimacyScore = (roomData['intimacyScore'] ?? 50).toDouble();
 
       // 모든 파트너 원을 partners 배열로 전달 (백엔드가 지원하는 경우)
       // 백엔드가 2인만 지원하면 user2에 첫 번째 파트너를 사용
@@ -544,7 +584,6 @@ class _MapScreenState extends State<MapScreen> {
               ],
               'search_query': searchQuery,
               'mood': mood,
-              'intimacy_score': intimacyScore,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -632,6 +671,7 @@ class _MapScreenState extends State<MapScreen> {
             child: KakaoMapWebView(
               key: _mapKey,
               kakaoApiKey: AppConfig.kakaoJsKey,
+              myCircleColor: _myColorHex,
               onCenterChanged: (lat, lng) {},
               onCircleDrawn: _onCircleDrawn,
               onMapReady: _onMapReady,
@@ -647,40 +687,55 @@ class _MapScreenState extends State<MapScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 헤더 행: 뒤로가기 + 타이틀 + 날짜/날씨
-                  GlassmorphicContainer(
-                    padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+                  // 헤더 행: 뒤로가기 + 타이틀 + 날짜
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppTheme.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
                     child: Row(
                       children: [
-                        // 뒤로가기
-                        GestureDetector(
+                        AppCircleIconButton(
+                          icon: Icons.chevron_left_rounded,
+                          size: 38,
+                          iconSize: 22,
                           onTap: () => Navigator.pop(context),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: AppTheme.bg,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.chevron_left_rounded,
-                              size: 22,
-                              color: AppTheme.textDark,
-                            ),
-                          ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         const Expanded(
-                          child: Text(
-                            '구역 설정',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.textDark,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '만날 범위 그리기',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: AppTheme.textDark,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '내가 괜찮은 지역을 원으로 선택해요',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textMuted,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        // 날짜 + 날씨
                         if (_appointmentDate != null)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -688,8 +743,8 @@ class _MapScreenState extends State<MapScreen> {
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
+                              color: AppTheme.primaryBg,
+                              borderRadius: BorderRadius.circular(999),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -737,156 +792,75 @@ class _MapScreenState extends State<MapScreen> {
                   // 모드 인디케이터 pill
                   if (_circleChecked)
                     Center(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Builder(
-                          builder: (context) {
-                            final pill = AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _isDrawMode ? AppTheme.primary : Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: _isDrawMode
+                                ? AppTheme.primary
+                                : AppTheme.border,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 14,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isDrawMode ? Icons.gesture : Icons.open_with,
+                              size: 14,
+                              color: _isDrawMode
+                                  ? Colors.white
+                                  : AppTheme.textMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isDrawMode
+                                  ? '범위 그리기'
+                                  : _myCircleDrawn
+                                  ? '반경 ${(_myRadius / 1000).toStringAsFixed(1)}km'
+                                  : '지도 이동',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                                 color: _isDrawMode
-                                    ? AppTheme.accent.withValues(
-                                        alpha: kIsWeb ? 0.95 : 0.88,
-                                      )
-                                    : Colors.white.withValues(
-                                        alpha: kIsWeb ? 0.95 : 0.82,
-                                      ),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: _isDrawMode
-                                      ? AppTheme.accent.withValues(alpha: 0.4)
-                                      : Colors.white.withValues(alpha: 0.6),
-                                ),
+                                    ? Colors.white
+                                    : AppTheme.textMuted,
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _isDrawMode
-                                        ? Icons.gesture
-                                        : Icons.open_with,
-                                    size: 14,
-                                    color: _isDrawMode
-                                        ? Colors.white
-                                        : AppTheme.textMuted,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _isDrawMode
-                                        ? '손가락으로 원을 그려보세요'
-                                        : _myCircleDrawn
-                                        ? '이동 모드  ·  반경 ${(_myRadius / 1000).toStringAsFixed(1)}km'
-                                        : '이동 모드  ·  원을 그려보세요',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: _isDrawMode
-                                          ? Colors.white
-                                          : AppTheme.textMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                            return kIsWeb
-                                ? pill
-                                : BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: pill,
-                                  );
-                          },
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  if (_circleChecked) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _MemberCircleStatusRail(
+                        members: widget.members,
+                        myUserId: widget.myUserId,
+                        myDrawn: _myCircleDrawn,
+                        partnerCircles: _partnerCircles,
+                        nameForUser: _memberName,
+                        colorForUser: _memberColorHex,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-
-          // ── 원 미그리기 안내 ───────────────────────────────
-          if (_circleChecked && !_myCircleDrawn)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: bottomPad + 100,
-              child: PointerInterceptor(
-                child: GlassmorphicContainer(
-                  borderRadius: BorderRadius.circular(14),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  backgroundAlpha: 0.12,
-                  baseColor: AppTheme.warning,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(
-                        Icons.edit_outlined,
-                        size: 14,
-                        color: AppTheme.warningDark,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        '원을 그려주세요',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.warningDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // ── 교집합 없음 경고 ───────────────────────────────
-          if (!_hasIntersection && _myCircleDrawn)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: bottomPad + 100,
-              child: PointerInterceptor(
-                child: GlassmorphicContainer(
-                  borderRadius: BorderRadius.circular(14),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  backgroundAlpha: 0.12,
-                  baseColor: AppTheme.accent,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.info_outline_rounded,
-                        size: 14,
-                        color: AppTheme.accent,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _partnerCircles.length < widget.members.length - 1
-                            ? '모든 멤버가 원을 그려야 장소 추천이 가능해요'
-                            : '원이 겹치지 않아요. 더 넓게 그려주세요',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.accent,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
 
           // ── 하단 플로팅 툴바 ────────────────────────────────
           Positioned(
@@ -894,89 +868,267 @@ class _MapScreenState extends State<MapScreen> {
             right: 16,
             bottom: bottomPad + 16,
             child: PointerInterceptor(
-              child: GlassmorphicContainer(
-                borderRadius: BorderRadius.circular(24),
-                sigmaX: 16,
-                sigmaY: 16,
-                padding: const EdgeInsets.all(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                child: Row(
-                  children: [
-                    // 그리기 모드 토글
-                    GestureDetector(
-                      onTap: _toggleDrawMode,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: _isDrawMode ? AppTheme.accent : AppTheme.bg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          _isDrawMode ? Icons.open_with : Icons.gesture,
-                          color: _isDrawMode
-                              ? Colors.white
-                              : AppTheme.textMuted,
-                          size: 22,
-                        ),
-                      ),
+              child: Center(
+                child: GlassmorphicContainer(
+                  padding: const EdgeInsets.all(8),
+                  borderRadius: BorderRadius.circular(32),
+                  backgroundAlpha: 0.68,
+                  sigmaX: 16,
+                  sigmaY: 16,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
                     ),
-                    const SizedBox(width: 10),
-                    // 내 위치 버튼
-                    GestureDetector(
-                      onTap: () => _moveToCurrentLocation(showFeedback: true),
-                      child: Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: AppTheme.bg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.my_location_rounded,
-                          color: AppTheme.accent,
-                          size: 22,
-                        ),
+                  ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _MapCircleButton(
+                        icon: _isDrawMode ? Icons.open_with : Icons.gesture,
+                        active: _isDrawMode,
+                        onTap: _toggleDrawMode,
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    // 장소 추천 버튼
-                    Expanded(
-                      child: GradientButton(
+                      const SizedBox(width: 8),
+                      _MapCircleButton(
+                        icon: Icons.my_location_rounded,
+                        iconColor: AppTheme.accent,
+                        onTap: () => _moveToCurrentLocation(showFeedback: true),
+                      ),
+                      const SizedBox(width: 8),
+                      _MapRecommendButton(
                         onTap: _requestPlaces,
                         enabled: _hasIntersection,
                         loading: _isRequesting,
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_rounded,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              '장소 추천 받기',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapCircleButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+  final Color? iconColor;
+
+  const _MapCircleButton({
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: active ? AppTheme.primary : AppTheme.bg,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: active ? AppTheme.primary : AppTheme.border,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Icon(
+            icon,
+            color: active ? Colors.white : iconColor ?? AppTheme.textMuted,
+            size: 21,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberCircleStatusRail extends StatelessWidget {
+  final List<String> members;
+  final String myUserId;
+  final bool myDrawn;
+  final Map<String, Map<String, dynamic>> partnerCircles;
+  final String Function(String userId) nameForUser;
+  final String Function(String userId) colorForUser;
+
+  const _MemberCircleStatusRail({
+    required this.members,
+    required this.myUserId,
+    required this.myDrawn,
+    required this.partnerCircles,
+    required this.nameForUser,
+    required this.colorForUser,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final orderedMembers = members.isEmpty ? [myUserId] : members;
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 220, maxWidth: 132),
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < orderedMembers.length; i++) ...[
+              _MemberCircleStatusChip(
+                userId: orderedMembers[i],
+                label: _labelFor(orderedMembers[i]),
+                color: _colorFor(orderedMembers[i]),
+                done: _isDone(orderedMembers[i]),
+              ),
+              if (i != orderedMembers.length - 1) const SizedBox(height: 7),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isDone(String userId) {
+    if (userId == myUserId) return myDrawn;
+    return partnerCircles.containsKey(userId);
+  }
+
+  String _labelFor(String userId) {
+    return nameForUser(userId);
+  }
+
+  Color _colorFor(String userId) {
+    final hex = colorForUser(userId).replaceFirst('#', '');
+    return Color(int.parse('FF$hex', radix: 16));
+  }
+}
+
+class _MemberCircleStatusChip extends StatelessWidget {
+  final String userId;
+  final String label;
+  final Color color;
+  final bool done;
+
+  const _MemberCircleStatusChip({
+    required this.userId,
+    required this.label,
+    required this.color,
+    required this.done,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 5, 9, 5),
+      decoration: BoxDecoration(
+        color: done ? color.withValues(alpha: 0.12) : AppTheme.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: done ? color.withValues(alpha: 0.28) : AppTheme.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Icon(
+              done ? Icons.check_rounded : Icons.more_horiz_rounded,
+              size: 14,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _shortLabel,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: done ? AppTheme.textDark : AppTheme.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String get _shortLabel {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return '멤버';
+    final chars = trimmed.characters;
+    return chars.length <= 4 ? trimmed : chars.take(4).join();
+  }
+}
+
+class _MapRecommendButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final bool enabled;
+  final bool loading;
+
+  const _MapRecommendButton({
+    required this.onTap,
+    required this.enabled,
+    required this.loading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final contentColor = enabled ? Colors.white : AppTheme.textMuted;
+
+    return GradientButton(
+      width: 144,
+      height: 48,
+      borderRadius: BorderRadius.circular(20),
+      enabled: enabled,
+      loading: loading,
+      onTap: onTap,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_rounded, size: 17, color: contentColor),
+          const SizedBox(width: 6),
+          Text(
+            '장소 추천',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: contentColor,
             ),
           ),
         ],

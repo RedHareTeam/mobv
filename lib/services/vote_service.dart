@@ -12,15 +12,15 @@ class VoteService {
     required String placeId,
   }) async {
     await _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection('votes')
         .doc(userId)
         .set({
-      'userId': userId,
-      'userName': userName,
-      'selectedPlaceId': placeId,
-    }, SetOptions(merge: true));
+          'userId': userId,
+          'userName': userName,
+          'selectedPlaceId': placeId,
+        }, SetOptions(merge: true));
   }
 
   // 투표 취소
@@ -29,7 +29,7 @@ class VoteService {
     required String userId,
   }) async {
     await _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection('votes')
         .doc(userId)
@@ -39,7 +39,7 @@ class VoteService {
   // 투표 현황 실시간 구독
   Stream<List<Map<String, dynamic>>> watchVotes(String roomId) {
     return _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection('votes')
         .snapshots()

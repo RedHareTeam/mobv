@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_theme.dart';
 
 class GlassMenuItem {
@@ -100,11 +101,15 @@ class _GlassPopupMenuState extends State<GlassPopupMenu>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Material(
       key: _key,
-      behavior: HitTestBehavior.opaque,
-      onTap: _entry == null ? _open : _close,
-      child: widget.child,
+      color: Colors.white,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _entry == null ? _open : _close,
+        child: widget.child,
+      ),
     );
   }
 }
@@ -160,59 +165,66 @@ class _MenuOverlay extends StatelessWidget {
         : pos.dy + btnSize.height + _gap;
     top = top.clamp(8.0, screenSize.height - menuH - safeBottom);
 
-    return Material(
-      type: MaterialType.transparency,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onDismiss,
-        child: Stack(
-          children: [
-            Positioned(
-              left: left,
-              top: top,
-              width: _menuWidth,
-              child: AnimatedBuilder(
-              animation: anim,
-              builder: (_, child) => Opacity(
-                opacity: anim.value,
-                child: Transform.scale(
-                  scale: 0.88 + 0.12 * anim.value,
-                  alignment: _anchor(openUpward, alignRight),
-                  child: child,
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.55),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
+    return PointerInterceptor(
+      child: Material(
+        type: MaterialType.transparency,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onDismiss,
+          child: Stack(
+            children: [
+              Positioned(
+                left: left,
+                top: top,
+                width: _menuWidth,
+                child: AnimatedBuilder(
+                  animation: anim,
+                  builder: (_, child) => Opacity(
+                    opacity: anim.value,
+                    child: Transform.scale(
+                      scale: 0.88 + 0.12 * anim.value,
+                      alignment: _anchor(openUpward, alignRight),
+                      child: child,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: _vPad),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: items
-                          .map((e) => _Item(item: e, onTap: () => onSelected(e.value)))
-                          .toList(),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.55),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: _vPad),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: items
+                              .map(
+                                (e) => _Item(
+                                  item: e,
+                                  onTap: () => onSelected(e.value),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
         ),
       ),
     );

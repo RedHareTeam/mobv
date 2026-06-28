@@ -110,3 +110,68 @@ class CircleForwardButton extends StatelessWidget {
     );
   }
 }
+
+class AppCircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool enabled;
+  final bool loading;
+  final double size;
+  final double iconSize;
+
+  const AppCircleIconButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.enabled = true,
+    this.loading = false,
+    this.size = 52,
+    this.iconSize = 28,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final active = enabled && !loading;
+
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 0,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: active ? onTap : null,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppTheme.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Center(
+            child: loading
+                ? SizedBox(
+                    width: iconSize * 0.68,
+                    height: iconSize * 0.68,
+                    child: const CircularProgressIndicator(
+                      color: AppTheme.primary,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : Icon(
+                    icon,
+                    color: active ? AppTheme.textDark : AppTheme.textMuted,
+                    size: iconSize,
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}

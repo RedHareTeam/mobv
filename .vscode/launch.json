@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Mobv Web (Chrome, port 5555)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "noDebug": true,
+      "toolArgs": [
+        "--web-port",
+        "5555",
+        "--dart-define-from-file",
+        ".dart_defines/web.json"
+      ]
+    },
+    {
+      "name": "Mobv Web Debug (Chrome, port 5555)",
+      "request": "launch",
+      "type": "dart",
+      "deviceId": "chrome",
+      "toolArgs": [
+        "--web-port",
+        "5555",
+        "--dart-define-from-file",
+        ".dart_defines/web.json"
+      ]
+    },
+    {
+      "name": "Mobv Android",
+      "request": "launch",
+      "type": "dart"
+    }
+  ]
+}

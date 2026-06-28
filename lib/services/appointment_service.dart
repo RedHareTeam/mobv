@@ -1,30 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
-class RoomService {
+class AppointmentService {
   final _db = FirebaseFirestore.instance;
   final _uuid = const Uuid();
 
-  // 방 생성
-  Future<String> createRoom({
+  // 약속 생성
+  Future<String> createAppointment({
     required String myUserId,
     required String myUserName,
-    String roomTitle = '',
+    required int myProfileColor,
+    String appointmentTitle = '',
     String category = 'cafe',
-    int maxMembers = 2,
+    int maxMembers = 99,
+    DateTime? appointmentDate,
   }) async {
     final roomId = _uuid.v4().substring(0, 8);
     final inviteCode = _uuid.v4().substring(0, 6).toUpperCase();
 
-    await _db.collection('rooms').doc(roomId).set({
+    await _db.collection('appointments').doc(roomId).set({
       'createdBy': myUserId,
       'members': [myUserId],
-      'memberNames': {myUserId: myUserName},
-      'status': 'waiting',
+      'memberProfiles': {
+        myUserId: {'name': myUserName, 'color': myProfileColor},
+      },
+      'status': appointmentDate == null ? 'waiting' : 'drawing',
       'inviteCode': inviteCode,
-      'roomTitle': roomTitle,
+      'appointmentTitle': appointmentTitle,
       'category': category,
       'maxMembers': maxMembers,
+      if (appointmentDate != null)
+        'appointmentDate': Timestamp.fromDate(appointmentDate),
       'selectedDate': null,
       'selectedTimeSlot': null,
       'allDatesCompleted': false,
@@ -34,21 +40,22 @@ class RoomService {
     });
 
     await _db.collection('users').doc(myUserId).update({
-      'rooms': FieldValue.arrayUnion([roomId]),
+      'appointments': FieldValue.arrayUnion([roomId]),
     });
 
     return roomId;
   }
 
-  // 초대 코드로 방 입장
-  // 반환값: roomId(성공), 'FULL'(정원 초과), null(코드 없음)
-  Future<String?> joinRoom({
+  // 초대 코드로 약속 참여
+  // 반환값: roomId(성공), 'FULL'(정원 초과), 'CLOSED'(참여 마감), null(코드 없음)
+  Future<String?> joinAppointment({
     required String inviteCode,
     required String myUserId,
     required String myUserName,
+    required int myProfileColor,
   }) async {
     final snap = await _db
-        .collection('rooms')
+        .collection('appointments')
         .where('inviteCode', isEqualTo: inviteCode)
         .limit(1)
         .get();
@@ -57,7 +64,7 @@ class RoomService {
 
     final roomDoc = snap.docs.first;
     final roomId = roomDoc.id;
-    final roomRef = _db.collection('rooms').doc(roomId);
+    final roomRef = _db.collection('appointments').doc(roomId);
     final userRef = _db.collection('users').doc(myUserId);
 
     String? result;
@@ -65,10 +72,15 @@ class RoomService {
       final fresh = await tx.get(roomRef);
       final data = fresh.data()!;
       final members = List<String>.from(data['members'] ?? []);
-      final maxMembers = data['maxMembers'] as int? ?? 2;
+      final maxMembers = data['maxMembers'] as int? ?? 99;
+      final status = data['status'] as String? ?? 'waiting';
 
       if (members.contains(myUserId)) {
         result = roomId;
+        return;
+      }
+      if (!_canJoinStatus(status)) {
+        result = 'CLOSED';
         return;
       }
       if (members.length >= maxMembers) {
@@ -77,11 +89,15 @@ class RoomService {
       }
       tx.update(roomRef, {
         'members': FieldValue.arrayUnion([myUserId]),
-        'memberNames.$myUserId': myUserName,
+        'memberProfiles.$myUserId': {
+          'name': myUserName,
+          'color': myProfileColor,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
       });
       // user doc도 같은 트랜잭션에서 업데이트 (불일치 방지)
       tx.update(userRef, {
-        'rooms': FieldValue.arrayUnion([roomId]),
+        'appointments': FieldValue.arrayUnion([roomId]),
       });
       result = roomId;
     });
@@ -89,17 +105,23 @@ class RoomService {
     return result;
   }
 
-  // 내 방 목록 실시간 구독
-  Stream<List<Map<String, dynamic>>> watchMyRooms(String userId) {
+  bool _canJoinStatus(String status) {
+    return status == 'waiting' ||
+        status == 'drawing' ||
+        status == 'circleReady';
+  }
+
+  // 내 약속 목록 실시간 구독
+  Stream<List<Map<String, dynamic>>> watchMyAppointments(String userId) {
     return _db
-        .collection('rooms')
+        .collection('appointments')
         .where('members', arrayContains: userId)
         .snapshots()
         .map((snap) {
-          final rooms = snap.docs
-              .map((d) => {...d.data(), 'roomId': d.id})
+          final appointments = snap.docs
+              .map((d) => _withAppointmentCompatibility(d.data(), d.id))
               .toList();
-          rooms.sort((a, b) {
+          appointments.sort((a, b) {
             Timestamp? ta = (a['updatedAt'] ?? a['createdAt']) as Timestamp?;
             Timestamp? tb = (b['updatedAt'] ?? b['createdAt']) as Timestamp?;
             if (ta == null && tb == null) return 0;
@@ -107,25 +129,66 @@ class RoomService {
             if (tb == null) return -1;
             return tb.compareTo(ta);
           });
-          return rooms;
+          return appointments;
         });
   }
 
-  // 단일 방 실시간 구독
-  Stream<Map<String, dynamic>?> watchRoom(String roomId) {
+  // 단일 약속 실시간 구독
+  Stream<Map<String, dynamic>?> watchAppointment(String roomId) {
     return _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .snapshots()
         .map(
-          (snap) => snap.exists ? {...snap.data()!, 'roomId': snap.id} : null,
+          (snap) => snap.exists
+              ? _withAppointmentCompatibility(snap.data()!, snap.id)
+              : null,
         );
   }
 
-  // 방 정보 단건 조회
-  Future<Map<String, dynamic>?> getRoom(String roomId) async {
-    final snap = await _db.collection('rooms').doc(roomId).get();
-    return snap.exists ? {...snap.data()!, 'roomId': snap.id} : null;
+  // 약속 정보 단건 조회
+  Future<Map<String, dynamic>?> getAppointment(String roomId) async {
+    final snap = await _db.collection('appointments').doc(roomId).get();
+    return snap.exists
+        ? _withAppointmentCompatibility(snap.data()!, snap.id)
+        : null;
+  }
+
+  Map<String, dynamic> _withAppointmentCompatibility(
+    Map<String, dynamic> data,
+    String id,
+  ) {
+    final normalized = {...data, 'roomId': id, 'appointmentId': id};
+    normalized['memberProfiles'] = _memberProfilesFrom(data);
+    normalized['appointmentTitle'] =
+        data['appointmentTitle'] ?? data['roomTitle'] ?? '';
+    return normalized;
+  }
+
+  Map<String, dynamic> _memberProfilesFrom(Map<String, dynamic> data) {
+    final rawProfiles = Map<String, dynamic>.from(
+      data['memberProfiles'] as Map? ?? {},
+    );
+    final names = Map<String, dynamic>.from(data['memberNames'] as Map? ?? {});
+    final colors = Map<String, dynamic>.from(
+      data['memberColors'] as Map? ?? {},
+    );
+    final members = List<String>.from(data['members'] ?? []);
+    return {
+      for (final uid in members)
+        uid: {
+          'name':
+              (rawProfiles[uid] is Map
+                      ? (rawProfiles[uid] as Map)['name']
+                      : null)
+                  ?.toString() ??
+              names[uid]?.toString() ??
+              '',
+          'color': rawProfiles[uid] is Map
+              ? ((rawProfiles[uid] as Map)['color'] ?? colors[uid])
+              : colors[uid],
+        },
+    };
   }
 
   // 장소 확정 히스토리 저장
@@ -137,14 +200,14 @@ class RoomService {
     required List<String> members,
     required DateTime? appointmentDate,
   }) async {
-    final roomSnap = await _db.collection('rooms').doc(roomId).get();
+    final roomSnap = await _db.collection('appointments').doc(roomId).get();
     final data = roomSnap.data() ?? {};
     if (data['historySaved'] == true) return;
 
     final placeId = confirmedPlace['kakaoId'] ?? 'unknown';
     final ts = appointmentDate?.millisecondsSinceEpoch ?? 0;
     final histRef = _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection('history')
         .doc('${placeId}_$ts');
@@ -155,12 +218,50 @@ class RoomService {
       'members': members,
       if (appointmentDate != null)
         'appointmentDate': Timestamp.fromDate(appointmentDate),
-      if (data['intimacyScore'] != null) 'intimacyScore': data['intimacyScore'],
       'date': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-    batch.set(_db.collection('rooms').doc(roomId), {
+    batch.set(_db.collection('appointments').doc(roomId), {
       'historySaved': true,
     }, SetOptions(merge: true));
+    await batch.commit();
+  }
+
+  Future<void> cleanupConfirmedAppointment(String roomId) async {
+    final appointmentRef = _db.collection('appointments').doc(roomId);
+    await appointmentRef.update({
+      'places': FieldValue.delete(),
+      'selectedDate': FieldValue.delete(),
+      'selectedTimeSlot': FieldValue.delete(),
+      'allDatesCompleted': FieldValue.delete(),
+      'allCirclesCompleted': FieldValue.delete(),
+      'maxMembers': FieldValue.delete(),
+      'historySaved': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    for (final col in ['circles', 'messages', 'votes']) {
+      await _deleteSubcollection(roomId, col);
+    }
+  }
+
+  Future<void> deleteAppointment(String roomId) async {
+    final roomRef = _db.collection('appointments').doc(roomId);
+    final roomSnap = await roomRef.get();
+    final members = roomSnap.exists
+        ? List<String>.from(roomSnap.data()?['members'] ?? [])
+        : <String>[];
+
+    for (final col in ['circles', 'messages', 'votes', 'history']) {
+      await _deleteSubcollection(roomId, col);
+    }
+
+    final batch = _db.batch();
+    batch.delete(roomRef);
+    for (final uid in members) {
+      batch.update(_db.collection('users').doc(uid), {
+        'appointments': FieldValue.arrayRemove([roomId]),
+      });
+    }
     await batch.commit();
   }
 
@@ -178,7 +279,7 @@ class RoomService {
       appointmentDate: appointmentDate,
     );
 
-    final roomRef = _db.collection('rooms').doc(roomId);
+    final roomRef = _db.collection('appointments').doc(roomId);
     final batch = _db.batch();
     batch.update(roomRef, {
       'status': 'waiting',
@@ -197,7 +298,7 @@ class RoomService {
 
   Future<void> _deleteSubcollection(String roomId, String col) async {
     final snap = await _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection(col)
         .get();
@@ -215,7 +316,7 @@ class RoomService {
 
   // 날짜 설정 후 drawing 상태로 전환
   Future<void> setDrawingStatus(String roomId, DateTime appointmentDate) async {
-    await _db.collection('rooms').doc(roomId).update({
+    await _db.collection('appointments').doc(roomId).update({
       'appointmentDate': Timestamp.fromDate(appointmentDate),
       'status': 'drawing',
       'updatedAt': FieldValue.serverTimestamp(),
@@ -223,14 +324,14 @@ class RoomService {
     });
   }
 
-  // 방 나가기
+  // 약속 나가기
   // - members에서 제거 + 활동 중(drawing/voting)이면 상태 초기화
-  // - members가 0명이면 방 + 서브컬렉션 전체 삭제
-  Future<void> leaveRoom({
+  // - members가 0명이면 약속 + 서브컬렉션 전체 삭제
+  Future<void> leaveAppointment({
     required String roomId,
     required String userId,
   }) async {
-    final roomRef = _db.collection('rooms').doc(roomId);
+    final roomRef = _db.collection('appointments').doc(roomId);
     bool isRoomDeleted = false;
     bool needsSubReset = false;
 
@@ -252,7 +353,7 @@ class RoomService {
       } else {
         final update = <String, dynamic>{
           'members': members,
-          'memberNames.$userId': FieldValue.delete(),
+          'memberProfiles.$userId': FieldValue.delete(),
         };
         if (needsSubReset) {
           update['status'] = 'waiting';
@@ -276,14 +377,14 @@ class RoomService {
     }
 
     await _db.collection('users').doc(userId).update({
-      'rooms': FieldValue.arrayRemove([roomId]),
+      'appointments': FieldValue.arrayRemove([roomId]),
     });
   }
 
   // 만남 히스토리 구독
   Stream<List<Map<String, dynamic>>> watchHistory(String roomId) {
     return _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection('history')
         .orderBy('date', descending: true)
@@ -294,10 +395,12 @@ class RoomService {
   // 특정 서브컬렉션의 모든 문서를 일괄 삭제
   Future<void> deleteSubcollection(String roomId, String sub) async {
     final snap = await _db
-        .collection('rooms')
+        .collection('appointments')
         .doc(roomId)
         .collection(sub)
         .get();
-    for (final doc in snap.docs) await doc.reference.delete();
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
+    }
   }
 }

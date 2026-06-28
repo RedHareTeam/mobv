@@ -30,6 +30,7 @@
   <div id="overlay-container"></div>
   <script>
     var _appkey = new URLSearchParams(window.location.search).get('appkey') || '';
+    var _myColor = new URLSearchParams(window.location.search).get('myColor') || '#9D8EFF';
     ['CircleDrawnChannel','MapReadyChannel','Console'].forEach(function(ch) {
       window[ch] = { postMessage: function(d) { window.parent.postMessage({__channel:ch,__data:String(d)}, '*'); } };
     });
@@ -43,7 +44,7 @@
     var ctx = canvas.getContext('2d');
     var overlayContainer = document.getElementById('overlay-container');
     var circles = {
-      my: { lat:null, lng:null, radius:null, userName:'', color:'#9D8EFF', messages:[] },
+      my: { lat:null, lng:null, radius:null, userName:'', color:_myColor, messages:[] },
       partners: {}
     };
     var partnerCircleObjects = {};
@@ -58,7 +59,7 @@
           canvas.width = window.innerWidth;
           canvas.height = window.innerHeight;
           map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.5665,126.9780), level:7 });
-          myCircle = new kakao.maps.Circle({ map:null, center:new kakao.maps.LatLng(37.5665,126.9780), radius:3000, strokeWeight:2, strokeColor:'#9D8EFF', strokeOpacity:0.8, fillColor:'#9D8EFF', fillOpacity:0.2 });
+          myCircle = new kakao.maps.Circle({ map:null, center:new kakao.maps.LatLng(37.5665,126.9780), radius:3000, strokeWeight:2, strokeColor:_myColor, strokeOpacity:0.8, fillColor:_myColor, fillOpacity:0.2 });
           kakao.maps.event.addListener(map, 'center_changed', updateAllOverlays);
           kakao.maps.event.addListener(map, 'zoom_changed', function(){pinch=null;clearTimeout(_wzT);overlayContainer.style.opacity='1';updateAllOverlays();});
           var mapEl=document.getElementById('map');
@@ -71,7 +72,7 @@
           canvas.addEventListener('touchstart', function(e) {
             if (!isDrawMode) return; e.preventDefault(); isDrawing=true; drawnPoints=[];
             ctx.clearRect(0,0,canvas.width,canvas.height); ctx.beginPath();
-            ctx.strokeStyle='rgba(157,142,255,0.7)'; ctx.lineWidth=3; ctx.lineCap='round';
+            ctx.strokeStyle=hexToRgba(circles.my.color,0.7); ctx.lineWidth=3; ctx.lineCap='round';
             var t=e.touches[0], rect=canvas.getBoundingClientRect();
             ctx.moveTo(t.clientX-rect.left, t.clientY-rect.top);
             drawnPoints.push({x:t.clientX-rect.left, y:t.clientY-rect.top});
@@ -93,7 +94,7 @@
             avgR/=drawnPoints.length;
             ctx.clearRect(0,0,canvas.width,canvas.height);
             ctx.beginPath(); ctx.arc(cx,cy,avgR,0,2*Math.PI);
-            ctx.strokeStyle='rgba(108,99,255,0.9)'; ctx.lineWidth=2; ctx.stroke();
+            ctx.strokeStyle=hexToRgba(circles.my.color,0.9); ctx.lineWidth=2; ctx.stroke();
             setTimeout(function() {
               ctx.clearRect(0,0,canvas.width,canvas.height);
               var proj=map.getProjection();
@@ -113,7 +114,7 @@
           canvas.addEventListener('mousedown', function(e) {
             if (!isDrawMode) return; isDrawing=true; drawnPoints=[];
             ctx.clearRect(0,0,canvas.width,canvas.height); ctx.beginPath();
-            ctx.strokeStyle='rgba(157,142,255,0.7)'; ctx.lineWidth=3; ctx.lineCap='round';
+            ctx.strokeStyle=hexToRgba(circles.my.color,0.7); ctx.lineWidth=3; ctx.lineCap='round';
             ctx.moveTo(e.offsetX, e.offsetY); drawnPoints.push({x:e.offsetX,y:e.offsetY});
           });
           canvas.addEventListener('mousemove', function(e) {
@@ -131,7 +132,7 @@
             avgR/=drawnPoints.length;
             ctx.clearRect(0,0,canvas.width,canvas.height);
             ctx.beginPath(); ctx.arc(cx,cy,avgR,0,2*Math.PI);
-            ctx.strokeStyle='rgba(157,142,255,0.9)'; ctx.lineWidth=2; ctx.stroke();
+            ctx.strokeStyle=hexToRgba(circles.my.color,0.9); ctx.lineWidth=2; ctx.stroke();
             setTimeout(function() {
               ctx.clearRect(0,0,canvas.width,canvas.height);
               var proj=map.getProjection();
@@ -170,7 +171,8 @@
       overlayContainer.appendChild(pin);
     }
     function getEdgePosition(sp){var W=window.innerWidth,H=window.innerHeight,cx=W/2,cy=H/2,dx=sp.x-cx,dy=sp.y-cy,ml=60,mr=60,mt=140,mb=175,rx=W-mr-cx,lx=ml-cx,topY=mt-cy,botY=H-mb-cy,sx=dx!==0?(dx>0?rx:lx)/dx:Infinity,sy=dy!==0?(dy>0?botY:topY)/dy:Infinity,s=Math.min(Math.abs(sx),Math.abs(sy));return{x:Math.max(ml,Math.min(W-mr,cx+dx*s)),y:Math.max(mt,Math.min(H-mb,cy+dy*s))};}
-    function updateMyCircle(lat,lng,radius,userName){circles.my.lat=lat;circles.my.lng=lng;circles.my.radius=radius;circles.my.userName=userName;myCircle.setPosition(new kakao.maps.LatLng(lat,lng));myCircle.setRadius(radius);myCircle.setMap(map);updateAllOverlays();}
+    function setMyColor(color){if(!color)return;circles.my.color=color;if(myCircle)myCircle.setOptions({strokeColor:color,fillColor:color});updateAllOverlays();}
+    function updateMyCircle(lat,lng,radius,userName,color){if(color){circles.my.color=color;myCircle.setOptions({strokeColor:color,fillColor:color});}circles.my.lat=lat;circles.my.lng=lng;circles.my.radius=radius;circles.my.userName=userName;myCircle.setPosition(new kakao.maps.LatLng(lat,lng));myCircle.setRadius(radius);myCircle.setMap(map);updateAllOverlays();}
     function clearPartnerCircle(partnerId){if(partnerCircleObjects[partnerId]){partnerCircleObjects[partnerId].setMap(null);delete partnerCircleObjects[partnerId];}delete circles.partners[partnerId];updateAllOverlays();}
     function updatePartnerCircle(partnerId,lat,lng,radius,userName,color){if(!circles.partners[partnerId])circles.partners[partnerId]={lat:null,lng:null,radius:null,userName:'',color:color,messages:[]};var c=circles.partners[partnerId];c.lat=lat;c.lng=lng;c.radius=radius;c.userName=userName;c.color=color;if(partnerCircleObjects[partnerId]){partnerCircleObjects[partnerId].setPosition(new kakao.maps.LatLng(lat,lng));partnerCircleObjects[partnerId].setRadius(radius);}else{partnerCircleObjects[partnerId]=new kakao.maps.Circle({map:map,center:new kakao.maps.LatLng(lat,lng),radius:radius,strokeWeight:2,strokeColor:color,strokeOpacity:0.8,fillColor:color,fillOpacity:0.2});}updateAllOverlays();}
     function addMessage(userId,userName,message){var cd=null;if(circles.my.userName===userName){cd=circles.my;}else{var keys=Object.keys(circles.partners);for(var i=0;i<keys.length;i++){if(circles.partners[keys[i]].userName===userName){cd=circles.partners[keys[i]];break;}}if(!cd&&circles.partners[userId])cd=circles.partners[userId];}if(!cd)return;cd.messages.push(message);if(cd.messages.length>4)cd.messages.shift();updateAllOverlays();setTimeout(function(){cd.messages.shift();updateAllOverlays();},5000);}

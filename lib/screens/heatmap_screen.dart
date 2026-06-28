@@ -64,7 +64,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
 
   StreamSubscription? _historySub;
   List<_PlaceGroup> _places = [];
-  List<Map<String, dynamic>> _rawHistory = [];
   bool _mapReady = false;
 
   @override
@@ -74,7 +73,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       final groups = _groupByPlace(history);
       setState(() {
         _places = groups;
-        _rawHistory = history;
       });
       if (_mapReady) _mapKey.currentState?.updateData(groups);
     });
@@ -213,46 +211,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                         ),
                       ),
                     ),
-                    if (_rawHistory.isNotEmpty)
-                      GestureDetector(
-                        onTap: () => showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => PointerInterceptor(
-                            child: _IntimacyGraphSheet(history: _rawHistory),
-                          ),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primary.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.show_chart_rounded,
-                                size: 14,
-                                color: AppTheme.primary,
-                              ),
-                              const SizedBox(width: 4),
-                              const Text(
-                                '친밀도',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -815,8 +773,9 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   Future<void> _submitRecord() async {
     if (_reviewCtrl.text.trim().isEmpty ||
         _submitting ||
-        _activeHistoryId == null)
+        _activeHistoryId == null) {
       return;
+    }
     setState(() => _submitting = true);
     try {
       await widget.historyService.addRecord(
@@ -865,9 +824,9 @@ class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
   }
 
   Color _countColor(int count) {
-    if (count >= 4) return AppTheme.accent;
-    if (count >= 2) return AppTheme.intimacyMid;
-    return AppTheme.intimacyTop;
+    if (count >= 4) return AppTheme.heatmapHigh;
+    if (count >= 2) return AppTheme.heatmapMid;
+    return AppTheme.heatmapLow;
   }
 
   @override
@@ -1664,237 +1623,4 @@ class _AddRecordSheetState extends State<_AddRecordSheet> {
       ),
     );
   }
-}
-
-// ── 친밀도 그래프 데이터 포인트 ────────────────────────────────────────────
-class _ScorePoint {
-  final DateTime date;
-  final int score;
-  _ScorePoint(this.date, this.score);
-}
-
-// ── 친밀도 변화 그래프 시트 ───────────────────────────────────────────────
-class _IntimacyGraphSheet extends StatelessWidget {
-  final List<Map<String, dynamic>> history;
-
-  const _IntimacyGraphSheet({required this.history});
-
-  List<_ScorePoint> _buildPoints() {
-    final pts = <_ScorePoint>[];
-    for (final h in history) {
-      final raw = h['intimacyScore'];
-      if (raw == null) continue;
-      final score = (raw as num).toInt();
-      final dateTs = h['appointmentDate'] ?? h['date'];
-      if (dateTs == null) continue;
-      final date = (dateTs as dynamic).toDate() as DateTime;
-      pts.add(_ScorePoint(date.toLocal(), score));
-    }
-    pts.sort((a, b) => a.date.compareTo(b.date));
-    return pts;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pts = _buildPoints();
-    final bottomPad = MediaQuery.of(context).padding.bottom;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.bg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + bottomPad),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 20),
-            decoration: BoxDecoration(
-              color: AppTheme.border,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const Text(
-            '친밀도 변화',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textDark,
-            ),
-          ),
-          const SizedBox(height: 24),
-          if (pts.length < 2)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.bar_chart_rounded,
-                    size: 44,
-                    color: AppTheme.border,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '아직 데이터가 부족해요',
-                    style: TextStyle(fontSize: 14, color: AppTheme.textMuted),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '약속을 2번 이상 확정하면 그래프가 표시돼요',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                  ),
-                ],
-              ),
-            )
-          else
-            SizedBox(
-              height: 220,
-              child: CustomPaint(
-                painter: _IntimacyGraphPainter(pts),
-                size: Size.infinite,
-              ),
-            ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-}
-
-// ── 친밀도 그래프 CustomPainter ───────────────────────────────────────────
-class _IntimacyGraphPainter extends CustomPainter {
-  final List<_ScorePoint> pts;
-  _IntimacyGraphPainter(this.pts);
-
-  static const _padL = 36.0;
-  static const _padR = 16.0;
-  static const _padT = 28.0;
-  static const _padB = 36.0;
-
-  Color _scoreColor(int s) {
-    if (s >= 80) return AppTheme.intimacyTop;
-    if (s >= 60) return AppTheme.intimacyHigh;
-    if (s >= 40) return AppTheme.intimacyMid;
-    return AppTheme.intimacyLow;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final chartW = size.width - _padL - _padR;
-    final chartH = size.height - _padT - _padB;
-    final n = pts.length;
-
-    // 그리드 라인 (0, 50, 100)
-    final gridPaint = Paint()
-      ..color = AppTheme.border
-      ..strokeWidth = 0.8;
-    for (final yVal in [0, 50, 100]) {
-      final dy = _padT + chartH * (1 - yVal / 100);
-      canvas.drawLine(Offset(_padL, dy), Offset(_padL + chartW, dy), gridPaint);
-      _drawText(
-        canvas,
-        '$yVal',
-        Offset(_padL - 4, dy),
-        const TextStyle(fontSize: 10, color: AppTheme.textMuted),
-        align: TextAlign.right,
-      );
-    }
-
-    // X 좌표 계산 (균등 배치)
-    List<Offset> offsets = List.generate(n, (i) {
-      final x = n == 1 ? _padL + chartW / 2 : _padL + i * chartW / (n - 1);
-      final y = _padT + chartH * (1 - pts[i].score / 100);
-      return Offset(x, y);
-    });
-
-    // 채워진 영역
-    final fillPath = Path()..moveTo(offsets.first.dx, offsets.first.dy);
-    for (int i = 1; i < n; i++) fillPath.lineTo(offsets[i].dx, offsets[i].dy);
-    fillPath.lineTo(offsets.last.dx, _padT + chartH);
-    fillPath.lineTo(offsets.first.dx, _padT + chartH);
-    fillPath.close();
-    canvas.drawPath(
-      fillPath,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppTheme.primary.withValues(alpha: 0.22),
-            AppTheme.primary.withValues(alpha: 0.0),
-          ],
-        ).createShader(Rect.fromLTWH(_padL, _padT, chartW, chartH)),
-    );
-
-    // 연결선
-    final linePath = Path()..moveTo(offsets.first.dx, offsets.first.dy);
-    for (int i = 1; i < n; i++) linePath.lineTo(offsets[i].dx, offsets[i].dy);
-    canvas.drawPath(
-      linePath,
-      Paint()
-        ..color = AppTheme.primary.withValues(alpha: 0.7)
-        ..strokeWidth = 2
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    // 포인트 + 라벨
-    for (int i = 0; i < n; i++) {
-      final o = offsets[i];
-      final score = pts[i].score;
-      final color = _scoreColor(score);
-
-      // 흰 배경 원
-      canvas.drawCircle(o, 7, Paint()..color = Colors.white);
-      // 색상 원
-      canvas.drawCircle(o, 5, Paint()..color = color);
-
-      // 점수 라벨 (위)
-      _drawText(
-        canvas,
-        '$score',
-        Offset(o.dx, o.dy - 20),
-        TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
-        align: TextAlign.center,
-      );
-
-      // 날짜 라벨 (아래)
-      final d = pts[i].date;
-      final label = '${d.month}/${d.day}';
-      _drawText(
-        canvas,
-        label,
-        Offset(o.dx, _padT + chartH + 6),
-        const TextStyle(fontSize: 10, color: AppTheme.textMuted),
-        align: TextAlign.center,
-      );
-    }
-  }
-
-  void _drawText(
-    Canvas canvas,
-    String text,
-    Offset anchor,
-    TextStyle style, {
-    TextAlign align = TextAlign.left,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: align,
-    )..layout();
-    final dx = align == TextAlign.center
-        ? anchor.dx - tp.width / 2
-        : align == TextAlign.right
-        ? anchor.dx - tp.width
-        : anchor.dx;
-    tp.paint(canvas, Offset(dx, anchor.dy - tp.height / 2));
-  }
-
-  @override
-  bool shouldRepaint(covariant _IntimacyGraphPainter old) => old.pts != pts;
 }

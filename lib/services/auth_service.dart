@@ -5,6 +5,17 @@ class AuthService {
   final _auth = FirebaseAuth.instance;
   final _db = FirebaseFirestore.instance;
 
+  static const List<int> profileColorValues = [
+    0xFF5865F2,
+    0xFF5AD6C0,
+    0xFF2E9BC8,
+    0xFFFF7A59,
+    0xFFFFC857,
+    0xFF7C5CFF,
+    0xFF22C55E,
+    0xFFFF5EA8,
+  ];
+
   // 현재 유저
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -19,11 +30,13 @@ class AuthService {
       email: email,
       password: password,
     );
+    final profileColor = _profileColorForUid(cred.user!.uid);
     // Firestore에 유저 정보 저장
     await _db.collection('users').doc(cred.user!.uid).set({
       'email': email,
       'userName': userName,
-      'rooms': [],
+      'profileColor': profileColor,
+      'appointments': [],
       'createdAt': FieldValue.serverTimestamp(),
     });
     return cred;
@@ -58,5 +71,30 @@ class AuthService {
         .doc(userId)
         .snapshots()
         .map((snap) => snap.exists ? snap.data() : null);
+  }
+
+  Future<void> updateProfileColor(String userId, int colorValue) async {
+    final roomsSnap = await _db
+        .collection('appointments')
+        .where('members', arrayContains: userId)
+        .get();
+
+    final batch = _db.batch();
+    batch.update(_db.collection('users').doc(userId), {
+      'profileColor': colorValue,
+    });
+    for (final roomDoc in roomsSnap.docs) {
+      batch.update(roomDoc.reference, {
+        'memberProfiles.$userId.color': colorValue,
+      });
+    }
+    await batch.commit();
+  }
+
+  int fallbackProfileColor(String userId) => _profileColorForUid(userId);
+
+  int _profileColorForUid(String uid) {
+    final hash = uid.codeUnits.fold<int>(0, (total, code) => total + code);
+    return profileColorValues[hash % profileColorValues.length];
   }
 }

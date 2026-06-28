@@ -6,10 +6,11 @@ import '../app_config.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/vote_service.dart';
 import '../services/circle_service.dart';
-import '../services/room_service.dart';
+import '../services/appointment_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/glass_popup_menu.dart';
-import '../widgets/glassmorphic_container.dart';
+import '../widgets/gradient_button.dart';
 import '../widgets/platform_html_view.dart';
 import 'package:mobv/app_theme.dart';
 import 'map_screen.dart';
@@ -17,8 +18,8 @@ import 'map_screen.dart';
 /// 장소 추천 & 투표 화면
 /// - 모든 멤버가 투표 완료 → 최다 득표 장소 자동 확정 → 확정 팝업
 /// - 다시 그리기: places·votes만 초기화, status → 'drawing' (지도로 돌아감)
-/// - 다시 만들기: 날짜·원·장소 모두 초기화, status → 'idle' (RoomHome으로 돌아감)
-/// - 확인 버튼: confirmAndReset 호출 후 RoomHomeScreen까지 popUntil
+/// - 나가기: 약속을 삭제하고 홈으로 돌아감
+/// - 확인 버튼: 확정된 약속 정보를 유지하고 홈으로 돌아감
 class PlaceScreen extends StatefulWidget {
   final String roomId;
   final String userId;
@@ -45,12 +46,13 @@ class _PlaceScreenState extends State<PlaceScreen>
     with SingleTickerProviderStateMixin {
   final _voteService = VoteService();
   final _circleService = CircleService();
-  final _roomService = RoomService();
+  final _roomService = AppointmentService();
 
   late final TabController _tabController;
 
   List<Map<String, dynamic>> _votes = [];
   List<Map<String, dynamic>> _circles = [];
+  Map<String, dynamic>? _appointmentData;
   String? _mySelectedId;
   StreamSubscription? _voteSub;
   StreamSubscription? _roomSub;
@@ -60,22 +62,6 @@ class _PlaceScreenState extends State<PlaceScreen>
   bool _confirmDialogOpen = false;
   bool _isConfirming = false;
   bool _tieDetected = false;
-
-  static const _circleColors = [
-    '#9D8EFF',
-    '#FF9BDE',
-    '#34D399',
-    '#FBBF24',
-    '#60A5FA',
-  ];
-
-  double _expansion = 1.0;
-
-  static double _radiusExpansion(int score) {
-    if (score <= 40) return 1.0;
-    if (score <= 70) return 1.3;
-    return 1.5;
-  }
 
   // ── 생명주기 ────────────────────────────────────────────
 
@@ -103,18 +89,17 @@ class _PlaceScreenState extends State<PlaceScreen>
       }
       _checkAllVoted(votes);
     });
-    _watchRoom();
+    _watchAppointment();
   }
 
   Future<void> _loadCircles() async {
     final results = await Future.wait([
       _circleService.getAllCircles(widget.roomId),
-      _roomService.getRoom(widget.roomId),
+      _roomService.getAppointment(widget.roomId),
     ]);
     final raw = results[0] as List<Map<String, dynamic>>;
     final roomData = results[1] as Map<String, dynamic>?;
-    final score = (roomData?['intimacyScore'] as num?)?.toInt() ?? 50;
-    final expansion = _radiusExpansion(score);
+    _appointmentData = roomData;
 
     final colored = raw
         .asMap()
@@ -122,16 +107,64 @@ class _PlaceScreenState extends State<PlaceScreen>
         .map(
           (e) => {
             ...e.value,
-            'radius': ((e.value['radius'] as num?) ?? 0) * expansion,
-            'color': _circleColors[e.key % _circleColors.length],
+            'radius': ((e.value['radius'] as num?) ?? 0).toDouble(),
+            'color': _memberColorHex(
+              roomData,
+              e.value['userId']?.toString() ?? '',
+            ),
           },
         )
         .toList();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _circles = colored;
-        _expansion = expansion;
       });
+    }
+  }
+
+  String _memberColorHex(Map<String, dynamic>? roomData, String userId) {
+    final memberProfiles = Map<String, dynamic>.from(
+      roomData?['memberProfiles'] as Map? ?? {},
+    );
+    final profile = Map<String, dynamic>.from(
+      memberProfiles[userId] as Map? ?? {},
+    );
+    final legacyColors = Map<String, dynamic>.from(
+      roomData?['memberColors'] as Map? ?? {},
+    );
+    final stored = profile['color'] ?? legacyColors[userId];
+    final colorValue =
+        _parseColorValue(stored) ?? _fallbackProfileColor(userId);
+    return _colorValueToHex(colorValue);
+  }
+
+  int? _parseColorValue(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final normalized = value
+          .trim()
+          .replaceFirst('#', '')
+          .replaceFirst('0x', '');
+      return int.tryParse(normalized, radix: 16);
+    }
+    return null;
+  }
+
+  int _fallbackProfileColor(String userId) {
+    if (userId.isEmpty) return AuthService.profileColorValues.first;
+    final hash = userId.codeUnits.fold<int>(0, (total, code) => total + code);
+    return AuthService.profileColorValues[hash %
+        AuthService.profileColorValues.length];
+  }
+
+  String _colorValueToHex(int value) {
+    final rgb = value & 0xFFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  Color _colorFromHex(String hex) {
+    final rgb = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$rgb', radix: 16));
   }
 
   @override
@@ -144,13 +177,22 @@ class _PlaceScreenState extends State<PlaceScreen>
 
   // ── Firestore 구독 ───────────────────────────────────────
 
-  /// 방 상태 실시간 감지
+  /// 약속 상태 실시간 감지
   /// - 'drawing'  → 다시 그리기 완료: 이 화면(PlaceScreen)만 pop → MapScreen으로 복귀
-  /// - 'idle'     → 다시 만들기 완료: RoomHomeScreen까지 popUntil
   /// - 'confirmed' → 장소 확정 팝업 표시
-  void _watchRoom() {
-    _roomSub = _roomService.watchRoom(widget.roomId).listen((room) {
-      if (room == null || _isNavigating || !mounted) return;
+  void _watchAppointment() {
+    _roomSub = _roomService.watchAppointment(widget.roomId).listen((room) {
+      if (_isNavigating || !mounted) return;
+      if (room == null) {
+        _isNavigating = true;
+        if (_confirmDialogOpen) Navigator.of(context).pop();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('약속이 삭제되어 홈으로 돌아갑니다')));
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+      _appointmentData = room;
       final status = room['status'] as String? ?? '';
 
       if (status == 'drawing') {
@@ -186,13 +228,6 @@ class _PlaceScreenState extends State<PlaceScreen>
             Navigator.pop(context);
           }
         }
-        return;
-      }
-
-      if (status == 'idle') {
-        // 다시 만들기 → RoomHomeScreen까지
-        _isNavigating = true;
-        Navigator.pop(context);
         return;
       }
 
@@ -263,6 +298,7 @@ class _PlaceScreenState extends State<PlaceScreen>
       members: widget.members,
       appointmentDate: widget.appointmentDate,
     );
+    await _roomService.cleanupConfirmedAppointment(widget.roomId);
   }
 
   Future<void> _selectPlace(String placeId) async {
@@ -294,7 +330,7 @@ class _PlaceScreenState extends State<PlaceScreen>
     await _roomService.deleteSubcollection(widget.roomId, 'votes');
     await _roomService.deleteSubcollection(widget.roomId, 'circles');
     await FirebaseFirestore.instance
-        .collection('rooms')
+        .collection('appointments')
         .doc(widget.roomId)
         .update({
           'places': [],
@@ -303,19 +339,19 @@ class _PlaceScreenState extends State<PlaceScreen>
         });
   }
 
-  /// 다시 만들기
-  /// 날짜·원·장소 모두 초기화, status → 'idle'
-  Future<void> _resetAll() async {
+  /// 나가기
+  /// 약속을 삭제하고 홈으로 돌아감
+  Future<void> _deleteAndExit() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AppDialog(
-        title: '다시 만들기',
-        content: '날짜, 원, 장소를 모두 초기화하고\n처음부터 다시 시작할까요?',
-        icon: Icons.refresh_rounded,
+        title: '약속에서 나갈까요?',
+        content: '이 약속이 삭제되고 홈 화면으로 돌아가요.',
+        icon: Icons.logout_rounded,
         actions: [
           DialogAction(label: '취소', onTap: () => Navigator.pop(context, false)),
           DialogAction(
-            label: '초기화',
+            label: '나가기',
             primary: true,
             destructive: true,
             onTap: () => Navigator.pop(context, true),
@@ -325,18 +361,10 @@ class _PlaceScreenState extends State<PlaceScreen>
     );
     if (confirm != true) return;
 
-    await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .update({
-          'status': 'idle',
-          'places': [],
-          'appointmentDate': FieldValue.delete(),
-          'confirmedPlace': FieldValue.delete(),
-        });
-    await _roomService.deleteSubcollection(widget.roomId, 'circles');
-    await _roomService.deleteSubcollection(widget.roomId, 'votes');
-    await _roomService.deleteSubcollection(widget.roomId, 'messages');
+    _isNavigating = true;
+    await _roomService.deleteAppointment(widget.roomId);
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   // ── 동점 팝업 ────────────────────────────────────────────
@@ -378,7 +406,7 @@ class _PlaceScreenState extends State<PlaceScreen>
   // ── 확정 팝업 ────────────────────────────────────────────
 
   /// 장소 확정 다이얼로그 표시
-  /// 확인 버튼 → confirmAndReset 호출 → RoomHomeScreen으로 popUntil
+  /// 확인 버튼 → 확정 상태를 유지하고 홈으로 돌아감
   void _showConfirmedDialog(Map<String, dynamic> place, List<String> members) {
     if (!mounted) return;
     _confirmDialogOpen = true;
@@ -392,29 +420,11 @@ class _PlaceScreenState extends State<PlaceScreen>
           _confirmDialogOpen = false;
           if (mounted) {
             Navigator.of(context).pop(); // 팝업 닫기
-            Navigator.of(context).pop(); // PlaceScreen → RoomHome
+            Navigator.of(context).pop(); // PlaceScreen → Home
           }
-          _cleanupConfirmedSession(); // 이전 세션 데이터 정리
         },
       ),
     ).then((_) => _confirmDialogOpen = false);
-  }
-
-  /// 확정 후 세션 데이터 정리 (circles/votes/messages 삭제 + status 초기화)
-  /// 서브컬렉션을 먼저 삭제한 뒤 status 변경 → 새 세션이 이전 votes를 보는 race condition 방지
-  Future<void> _cleanupConfirmedSession() async {
-    for (final col in ['votes', 'circles', 'messages']) {
-      await _roomService.deleteSubcollection(widget.roomId, col);
-    }
-    await FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(widget.roomId)
-        .update({
-          'status': 'waiting',
-          'places': FieldValue.delete(),
-          'confirmedPlace': FieldValue.delete(),
-          'appointmentDate': FieldValue.delete(),
-        });
   }
 
   // ── 빌드 ────────────────────────────────────────────────
@@ -428,108 +438,58 @@ class _PlaceScreenState extends State<PlaceScreen>
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bg,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        centerTitle: false,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.chevron_left_rounded,
-            size: 28,
-            color: AppTheme.textDark,
-          ),
-          onPressed: () => Navigator.pop(context),
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-        ),
-        title: const Text(
-          '장소 선택',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: AppTheme.textDark,
-            letterSpacing: -0.3,
-          ),
-        ),
-        actions: [
-          // 투표 현황 pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: voteRatio == 1.0
-                  ? AppTheme.confirmed.withValues(alpha: 0.12)
-                  : AppTheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.how_to_vote_outlined,
-                  size: 13,
-                  color: voteRatio == 1.0
-                      ? AppTheme.confirmed
-                      : AppTheme.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '$votedCount/${widget.members.length}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: voteRatio == 1.0
-                        ? AppTheme.confirmed
-                        : AppTheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-          GlassPopupMenu(
-            openUpward: false,
-            alignRight: true,
-            onSelected: (v) {
-              if (v == 'redraw') _resetAndRedraw();
-              if (v == 'restart') _resetAll();
-            },
-            items: const [
-              GlassMenuItem(
-                value: 'redraw',
-                icon: Icons.refresh_rounded,
-                label: '다시 그리기',
-              ),
-              GlassMenuItem(
-                value: 'restart',
-                icon: Icons.replay_rounded,
-                label: '다시 만들기',
-                destructive: true,
-              ),
-            ],
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppTheme.bg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.more_vert_rounded,
-                color: AppTheme.textMuted,
-                size: 20,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: Column(
         children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 20, 8),
+              child: SizedBox(
+                height: 44,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: AppCircleIconButton(
+                        icon: Icons.chevron_left_rounded,
+                        size: 38,
+                        iconSize: 22,
+                        onTap: () => Navigator.pop(context),
+                      ),
+                    ),
+                    const Text(
+                      '장소 선택',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.textDark,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _VoteStatusPill(
+                            votedCount: votedCount,
+                            memberCount: widget.members.length,
+                            completed: voteRatio == 1.0,
+                          ),
+                          const SizedBox(width: 8),
+                          _PlaceMenuButton(
+                            onRedraw: _resetAndRedraw,
+                            onExit: _deleteAndExit,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           // ── 탭 바 (pill 스타일) ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -582,10 +542,20 @@ class _PlaceScreenState extends State<PlaceScreen>
                     final place = widget.places[index];
                     final placeId = place['kakaoId'] ?? '$index';
                     final isSelected = _mySelectedId == placeId;
-                    final voterNames = _votes
+                    final voters = _votes
                         .where((v) => v['selectedPlaceId'] == placeId)
-                        .map((v) => (v['userName'] as String?) ?? '')
-                        .where((n) => n.isNotEmpty)
+                        .map(
+                          (v) => _VoteChipData(
+                            name: (v['userName'] as String?) ?? '',
+                            color: _colorFromHex(
+                              _memberColorHex(
+                                _appointmentData,
+                                v['userId']?.toString() ?? '',
+                              ),
+                            ),
+                          ),
+                        )
+                        .where((v) => v.name.isNotEmpty)
                         .toList();
                     final url = (place['url'] ?? place['kakaoUrl']) as String?;
                     return _PlaceCard(
@@ -593,7 +563,7 @@ class _PlaceScreenState extends State<PlaceScreen>
                       placeId: placeId,
                       rank: index + 1,
                       isSelected: isSelected,
-                      voterNames: voterNames,
+                      voters: voters,
                       onSelect: () => _selectPlace(placeId),
                       onDetail: url != null && url.isNotEmpty
                           ? () => launchUrl(
@@ -612,37 +582,10 @@ class _PlaceScreenState extends State<PlaceScreen>
                           color: AppTheme.primary,
                         ),
                       )
-                    : Stack(
-                        children: [
-                          _PlaceMapView(
-                            kakaoApiKey: AppConfig.kakaoJsKey,
-                            circles: _circles,
-                            places: widget.places,
-                          ),
-                          if (_expansion > 1.0)
-                            Positioned(
-                              top: 12,
-                              left: 12,
-                              child: GlassmorphicContainer(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                sigmaX: 8,
-                                sigmaY: 8,
-                                backgroundAlpha: 0.88,
-                                baseColor: AppTheme.primary,
-                                child: Text(
-                                  '친밀도로 탐색 범위 ${(_expansion * 100).toInt()}% 확장',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
+                    : _PlaceMapView(
+                        kakaoApiKey: AppConfig.kakaoJsKey,
+                        circles: _circles,
+                        places: widget.places,
                       ),
               ],
             ),
@@ -657,12 +600,124 @@ class _PlaceScreenState extends State<PlaceScreen>
 // 장소 카드
 // ════════════════════════════════════════════════════════════
 
+class _VoteStatusPill extends StatelessWidget {
+  final int votedCount;
+  final int memberCount;
+  final bool completed;
+
+  const _VoteStatusPill({
+    required this.votedCount,
+    required this.memberCount,
+    required this.completed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = completed ? AppTheme.confirmed : AppTheme.primary;
+
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.how_to_vote_outlined, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$votedCount/$memberCount',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlaceMenuButton extends StatelessWidget {
+  final VoidCallback onRedraw;
+  final VoidCallback onExit;
+
+  const _PlaceMenuButton({required this.onRedraw, required this.onExit});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPopupMenu(
+      openUpward: false,
+      alignRight: true,
+      onSelected: (value) {
+        if (value == 'redraw') onRedraw();
+        if (value == 'exit') onExit();
+      },
+      items: const [
+        GlassMenuItem(
+          value: 'redraw',
+          icon: Icons.refresh_rounded,
+          label: '다시 그리기',
+        ),
+        GlassMenuItem(
+          value: 'exit',
+          icon: Icons.logout_rounded,
+          label: '나가기',
+          destructive: true,
+        ),
+      ],
+      child: const _PlaceMenuCircleIcon(),
+    );
+  }
+}
+
+class _PlaceMenuCircleIcon extends StatelessWidget {
+  const _PlaceMenuCircleIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.more_horiz_rounded,
+          color: AppTheme.textDark,
+          size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+class _VoteChipData {
+  final String name;
+  final Color color;
+
+  const _VoteChipData({required this.name, required this.color});
+}
+
 class _PlaceCard extends StatelessWidget {
   final Map<String, dynamic> place;
   final String placeId;
   final int rank;
   final bool isSelected;
-  final List<String> voterNames;
+  final List<_VoteChipData> voters;
   final VoidCallback onSelect;
   final VoidCallback? onDetail;
 
@@ -671,7 +726,7 @@ class _PlaceCard extends StatelessWidget {
     required this.placeId,
     required this.rank,
     required this.isSelected,
-    required this.voterNames,
+    required this.voters,
     required this.onSelect,
     this.onDetail,
   });
@@ -810,10 +865,7 @@ class _PlaceCard extends StatelessWidget {
                       onTap: onSelect,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
                           gradient: isSelected
                               ? const LinearGradient(
@@ -826,17 +878,14 @@ class _PlaceCard extends StatelessWidget {
                                 )
                               : null,
                           color: isSelected ? null : AppTheme.bg,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          isSelected ? '✓ 선택됨' : '선택',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected
-                                ? Colors.white
-                                : AppTheme.textMuted,
-                          ),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_rounded
+                              : Icons.check_circle_outline_rounded,
+                          size: 16,
+                          color: isSelected ? Colors.white : AppTheme.primary,
                         ),
                       ),
                     ),
@@ -846,39 +895,59 @@ class _PlaceCard extends StatelessWidget {
             ),
 
             // 투표자 닉네임
-            if (voterNames.isNotEmpty) ...[
+            if (voters.isNotEmpty) ...[
               const SizedBox(height: 10),
               const Divider(height: 1, color: AppTheme.border),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 6,
                 runSpacing: 4,
-                children: voterNames
-                    .map(
-                      (name) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    )
+                children: voters
+                    .map((voter) => _VoterChip(voter: voter))
                     .toList(),
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _VoterChip extends StatelessWidget {
+  final _VoteChipData voter;
+
+  const _VoterChip({required this.voter});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: voter.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: voter.color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            voter.name,
+            style: TextStyle(
+              fontSize: 11,
+              color: voter.color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

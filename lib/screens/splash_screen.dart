@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mobv/widgets/mobv_brand.dart';
 import 'auth_screen.dart';
-import 'room_list_screen.dart';
+import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -40,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 420),
           pageBuilder: (_, _, _) =>
-              user != null ? const RoomListScreen() : const AuthScreen(),
+              user != null ? const HomeScreen() : const AuthScreen(),
           transitionsBuilder: (_, anim, _, child) =>
               FadeTransition(opacity: anim, child: child),
         ),
@@ -62,7 +62,8 @@ class _SplashScreenState extends State<SplashScreen>
         opacity: _fade,
         child: ScaleTransition(
           scale: _scale,
-          child: const Center(
+          child: const Align(
+            alignment: Alignment(0, -0.08),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

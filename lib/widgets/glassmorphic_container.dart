@@ -29,7 +29,11 @@ class GlassmorphicContainer extends StatelessWidget {
     final inner = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: baseColor.withValues(alpha: kIsWeb ? (backgroundAlpha + 0.1).clamp(0.0, 1.0) : backgroundAlpha),
+        color: baseColor.withValues(
+          alpha: kIsWeb
+              ? (backgroundAlpha + 0.1).clamp(0.0, 1.0)
+              : backgroundAlpha,
+        ),
         borderRadius: borderRadius,
         border: Border.all(color: baseColor.withValues(alpha: 0.6)),
       ),
@@ -49,7 +53,10 @@ class GlassmorphicContainer extends StatelessWidget {
     if (boxShadow.isEmpty) return glassy;
 
     return DecoratedBox(
-      decoration: BoxDecoration(borderRadius: borderRadius, boxShadow: boxShadow),
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: boxShadow,
+      ),
       child: glassy,
     );
   }
