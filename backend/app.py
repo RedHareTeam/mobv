@@ -69,14 +69,14 @@ def recommend():
     users = data.get('users')
     category = data.get('category', '')
 
-    # 구버전 호환: user1/user2 형식 지원
+    # 호환: user1/user2 형식 지원
     if not users:
         user1 = data.get('user1')
         user2 = data.get('user2')
         if user1 and user2:
             users = [user1, user2]
 
-    # 구버전 호환: search_query → category 변환
+    # 호환: search_query → category 변환
     if not category:
         category = data.get('search_query', '맛집')
 
@@ -86,8 +86,8 @@ def recommend():
     if len(users) > 5:
         return jsonify({"error": "최대 5명까지 지원합니다"}), 400
 
-    # radius_expansion 기본값 0 (친밀도 기반 확장 제거)
-    radius_expansion = 0
+    # radius_expansion 기본값 
+    radius_expansion = 1.0
 
     intersection = calculate_intersection(users, radius_expansion)
     center_lat = intersection["center_lat"]
