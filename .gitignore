@@ -1,11 +1,24 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
+!ios/Podfile.lock
 *.log
 *.pyc
 *.swp
 .buildlog/
 .history
+.DS_Store
+
+# Local secrets and generated service configs
+.env
+.env.*
+!.env.example
+.dart_defines/*.json
+!.dart_defines/*.example.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
 
 
 
