@@ -4,55 +4,15 @@
 
 ---
 
-## ⚠️ 합치기 전 반드시 확인
-
-### 1. API 요청 형식 변경 (`map_screen.dart`)
-
-```dart
-// ❌ 기존 (구버전)
-body: jsonEncode({
-  'user1': {'lat': _myLat, 'lng': _myLng, 'radius': _myRadius},
-  'user2': {'lat': firstPartnerData['lat'], 'lng': ..., 'radius': ...},
-  'place_type': placeType,
-  'mood': mood,
-  'intimacy_score': intimacyScore,
-})
-
-// ✅ 새 버전
-body: jsonEncode({
-  'users': [
-    {'lat': _myLat, 'lng': _myLng, 'radius': _myRadius},
-    ...partnerIds.map((id) {
-      final d = _partnerCircles[id]!;
-      return {'lat': d['lat'], 'lng': d['lng'], 'radius': d['radius']};
-    }),
-  ],
-  'category': category,  // 사용자가 교집합 확인 후 선택한 카테고리
-})
-```
-
-### 2. 응답 필드명 변경
-
-```dart
-// ❌ 기존
-result['has_intersection']
-result['users_transit']   // 제거됨
-result['total_time']      // 제거됨
-
-// ✅ 새 버전
-result['hasIntersection']
-```
-
-### 3. category 필드 및 UI 추가 필요
+### category
 
 - 교집합 확인 후 사용자가 카테고리를 선택하는 화면 추가
 - 선택한 `category` 값을 `/recommend` 요청에 포함
 - 고정 버튼 + 직접 입력창 조합 권장
-- 대분류 (포괄): 맛집, 카페, 술집, 디저트
-- 소분류 (구체): 고기, 라멘, 초밥, 피자, 파스타, 마라탕, 국밥
 - 직접 입력: 자유 텍스트
 
 ```
+예시 
 🍚 맛집    🍺 술집    ☕ 카페    🍰 디저트
 
 🥩 고기    🍜 라멘    🍱 초밥    🍕 피자
