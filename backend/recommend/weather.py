@@ -87,10 +87,3 @@ def get_weather(lat, lng):
         data["weather"][0]["description"],
         data["main"]["temp"],
     )
-
-
-def apply_weather_filter(search_query, weather, search_radius):
-    condition = weather.get("condition", "clear")
-    if condition in ["rain", "snow", "thunder"]:
-        return search_query, min(search_radius, 1500)
-    return search_query, search_radius
