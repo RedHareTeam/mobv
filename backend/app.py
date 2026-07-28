@@ -9,6 +9,26 @@ from recommend.midpoint import find_best_midpoint
 app = Flask(__name__)
 CORS(app)
 
+# 영어→한글 카테고리 매핑
+CATEGORY_MAP_EN = {
+    "cafe": "카페",
+    "restaurant": "맛집",
+    "bar": "술집",
+    "dessert": "디저트",
+    "meat": "고기",
+    "ramen": "라멘",
+    "sushi": "초밥",
+    "pizza": "피자",
+    "pasta": "파스타",
+    "malatang": "마라탕",
+    "gukbap": "국밥",
+    "korean": "한식",
+    "chinese": "중식",
+    "japanese": "일식",
+    "cutlet": "돈까스",
+    "izakaya": "이자카야",
+}
+
 
 @app.route('/')
 def index():
@@ -69,14 +89,7 @@ def recommend():
     users = data.get('users')
     category = data.get('category', '')
 
-    # 호환: user1/user2 형식 지원
-    if not users:
-        user1 = data.get('user1')
-        user2 = data.get('user2')
-        if user1 and user2:
-            users = [user1, user2]
-
-    # 호환: search_query → category 변환
+    # 구버전 호환: search_query → category 변환
     if not category:
         category = data.get('search_query', '맛집')
 
@@ -86,7 +99,7 @@ def recommend():
     if len(users) > 5:
         return jsonify({"error": "최대 5명까지 지원합니다"}), 400
 
-    # radius_expansion 기본값 
+    # radius_expansion 기본값
     radius_expansion = 1.0
 
     intersection = calculate_intersection(users, radius_expansion)
@@ -121,9 +134,12 @@ def recommend():
         print(f"날씨 오류: {e}")
         weather = {"condition": "clear", "temp": 0, "description": "알 수 없음"}
 
-    # place_type 처리
+    # 리스트면 첫 번째 값만 사용
     if isinstance(category, list):
         category = category[0] if category else ''
+
+    # 영어→한글 카테고리 변환
+    category = CATEGORY_MAP_EN.get(category, category)
 
     # 교집합 shape 계산 (장소 필터링용)
     try:
