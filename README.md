@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/31617369/README.md)
 # Mobv Backend
 
 여러 명이 각자 그린 "이동 가능 범위"의 교집합을 계산하고, 그 안에서 만날 장소를 추천하는 Flask API 서버입니다.
