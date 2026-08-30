@@ -24,6 +24,20 @@ CATEGORY_QUERY = {
     "술집":     "술집",
     "이자카야": "이자카야",
     "바":       "바",
+
+    # 스터디 (카공 — 노트북 들고 여럿이 모여 작업/공부하는 용도.
+    # "스터디카페"라는 이름의 업종(1인 개인열람실형 공간대여업)과는 다르다.
+    # 카카오에 "카공하기 좋은 카페"라는 별도 카테고리가 없으므로, 디저트와 같은
+    # 방식으로 "카페"의 하위 개념으로 취급한다.
+    #
+    # 실제 API로 확인함(2026-08-30):
+    # - "노트북 카페"는 결과 0개라 완전히 죽은 쿼리라서 제외.
+    # - "카공 카페"(띄어쓰기) vs "카공카페"(붙여쓰기)는 결과가 완전히 동일 —
+    #   카카오는 띄어쓰기를 구분하지 않는다.
+    # - "카공카페" 단독으로는 스타벅스/투썸/파스쿠찌 같은 대형 프랜차이즈 위주로
+    #   나오는데, "조용한 카페"를 같이 검색하면 개인 카페 위주로 결과가 넓어지고
+    #   프랜차이즈 쏠림이 줄어든다(레거시 Chemeet 시스템도 동일한 조합을 썼음).
+    "카공카페": ["카공카페", "조용한 카페"],
 }
 
 # 카테고리 필터링 규칙 (카카오 category_name 기준)
@@ -44,6 +58,9 @@ CATEGORY_RULES = {
     "술집":     lambda c: any(k in c for k in ["술집", "주점", "호프"]),
     "이자카야": lambda c: any(k in c for k in ["일식", "이자카야", "주점"]),
     "바":       lambda c: any(k in c for k in ["술집", "바", "주점"]),
+    # 카페 하위 개념이라 "디저트"와 동일하게 일반 카페 카테고리 체크만 한다.
+    # (스터디카페/스터디룸 같은 공간대여업 필터가 아님 — 그건 다른 목적의 장소다)
+    "카공카페": lambda c: "카페" in c,
 }
 
 # 프랜차이즈 블랙리스트
@@ -103,15 +120,15 @@ def filter_by_category(places, category):
 
     # 피자/카페 카테고리 프랜차이즈 제거
     if category == "피자":
-        filtered2 = [p for p in result if not any(b in p["name"] for b in PIZZA_BLACKLIST)]
+        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in PIZZA_BLACKLIST)]
         result = filtered2 if filtered2 else result
 
-    if category in {"카페", "디저트"}:
-        filtered2 = [p for p in result if not any(b in p["name"] for b in CAFE_BLACKLIST)]
+    if category in {"카페", "디저트", "카공카페"}:
+        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in CAFE_BLACKLIST)]
         result = filtered2 if filtered2 else result
 
     if category == "한식":
-        filtered2 = [p for p in result if not any(b in p["name"] for b in KOREAN_BLACKLIST)]
+        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in KOREAN_BLACKLIST)]
         result = filtered2 if filtered2 else result
 
     return result

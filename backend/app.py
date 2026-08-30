@@ -1,6 +1,10 @@
+import os
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from recommend.intersection import calculate_intersection, get_intersection_shape, is_within_intersection
+from recommend.intersection import (
+    calculate_intersection, get_intersection_shape, is_within_intersection, find_best_partial_intersection,
+)
 from recommend.place import search_places
 from recommend.query_builder import build_search_queries, filter_by_category, search_with_multi_query
 from recommend.weather import get_weather, get_weather_forecast
@@ -8,6 +12,31 @@ from recommend.midpoint import find_best_midpoint
 
 app = Flask(__name__)
 CORS(app)
+
+
+# 잘못된 요청/서버 오류도 항상 JSON으로 응답 (Flutter 클라이언트가 항상 JSON을 기대하므로
+# Werkzeug 기본 HTML 에러 페이지가 그대로 나가면 클라이언트단 JSON 파싱이 깨짐)
+@app.errorhandler(400)
+def bad_request(e):
+    return jsonify({"error": "잘못된 요청입니다"}), 400
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "존재하지 않는 경로입니다"}), 404
+
+
+@app.errorhandler(415)
+def unsupported_media_type(e):
+    return jsonify({"error": "Content-Type은 application/json 이어야 합니다"}), 400
+
+
+@app.errorhandler(500)
+def server_error(e):
+    # debug=True인 동안에는 이 핸들러 대신 Werkzeug 인터랙티브 디버거가 뜬다.
+    # 배포 전 debug=False로 바꿔야 이 핸들러가 실제로 동작한다.
+    print(f"서버 오류: {e}")
+    return jsonify({"error": "서버에서 처리 중 오류가 발생했습니다"}), 500
 
 # 영어→한글 카테고리 매핑
 CATEGORY_MAP_EN = {
@@ -23,10 +52,9 @@ CATEGORY_MAP_EN = {
     "malatang": "마라탕",
     "gukbap": "국밥",
     "korean": "한식",
-    "chinese": "중식",
-    "japanese": "일식",
     "cutlet": "돈까스",
     "izakaya": "이자카야",
+    "study": "카공카페",
 }
 
 
@@ -79,9 +107,34 @@ def _search_and_filter(category, center_lat, center_lng, search_radius, shape, s
     return top_places
 
 
+def _validate_users(users):
+    """
+    users 배열 각 항목이 계산 가능한 값인지 검증.
+    lat/lng/radius 중 하나라도 없거나 범위를 벗어나면 사람이 읽을 수 있는 오류 메시지 반환,
+    이상 없으면 None 반환.
+    검증 없이 calculate_intersection에 그대로 넘기면 KeyError/TypeError로 500이 나므로 여기서 막는다.
+    """
+    for i, u in enumerate(users):
+        if not isinstance(u, dict):
+            return f"{i+1}번째 사용자 데이터 형식이 올바르지 않습니다"
+        for key in ("lat", "lng", "radius"):
+            if key not in u:
+                return f"{i+1}번째 사용자에 {key} 값이 없습니다"
+            if not isinstance(u[key], (int, float)):
+                return f"{i+1}번째 사용자의 {key} 값이 숫자가 아닙니다"
+        if not (-90 <= u["lat"] <= 90):
+            return f"{i+1}번째 사용자의 위도(lat) 값이 올바르지 않습니다"
+        if not (-180 <= u["lng"] <= 180):
+            return f"{i+1}번째 사용자의 경도(lng) 값이 올바르지 않습니다"
+        # 프론트 원 그리기 최대 반경과 맞춰서 조정 필요 (우선 20km로 보수적 상한)
+        if not (0 < u["radius"] <= 20000):
+            return f"{i+1}번째 사용자의 radius 값이 올바르지 않습니다 (0~20000m)"
+    return None
+
+
 @app.route('/recommend', methods=['POST'])
 def recommend():
-    data = request.get_json()
+    data = request.get_json(silent=True)
 
     if not data:
         return jsonify({"error": "데이터가 없습니다"}), 400
@@ -93,11 +146,15 @@ def recommend():
     if not category:
         category = data.get('search_query', '맛집')
 
-    if not users or len(users) < 2:
+    if not users or not isinstance(users, list) or len(users) < 2:
         return jsonify({"error": "users 좌표가 2명 이상 필요합니다"}), 400
 
     if len(users) > 5:
         return jsonify({"error": "최대 5명까지 지원합니다"}), 400
+
+    validation_error = _validate_users(users)
+    if validation_error:
+        return jsonify({"error": validation_error}), 400
 
     # radius_expansion 기본값
     radius_expansion = 1.0
@@ -110,6 +167,32 @@ def recommend():
 
     # 교집합 없을 때 바로 안내
     if not has_intersection:
+        try:
+            partial = find_best_partial_intersection(users, radius_expansion)
+        except Exception as e:
+            print(f"부분 교집합 계산 오류: {e}")
+            partial = None
+
+        if partial:
+            k, n = partial["matched_count"], partial["total_count"]
+            missing = n - k
+            # 정확한 비율(2/3, 4/5 등)은 메시지에 노출하지 않는다 — 숫자로 다수/소수를
+            # 갈라 말하면, 누구를 지목하지 않아도 "편 가르기" 프레이밍 자체가 소외감을
+            # 만들 수 있기 때문. 대신 얼마나 가까운 상황인지(1명만 남았는지, 그 이상인지)
+            # 정도의 온도차만 전달한다. 원본 수치는 partialMatch에 그대로 들어있어
+            # 필요하면 프론트에서 얼마든지 다르게(예: 본인에게만 조용히) 활용할 수 있다.
+            if missing <= 1:
+                message = "거의 다 만날 수 있는 지점이에요. 조금만 반경을 넓히면 될 것 같아요."
+            else:
+                message = "아직은 거리가 좀 있는 지점이에요. 반경을 조금 더 넓혀보시겠어요?"
+
+            return jsonify({
+                "hasIntersection": False,
+                "message": message,
+                "places": [],
+                "partialMatch": partial,
+            }), 200
+
         return jsonify({
             "hasIntersection": False,
             "message": "겹치는 지역이 없어요. 반경을 조금만 넓히면 새로운 추천 결과를 볼 수 있어요.",
@@ -184,4 +267,8 @@ def weather_forecast():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    # 배포 환경에서는 FLASK_DEBUG를 설정하지 않으면 자동으로 False.
+    # debug=True 상태로 배포하면 500 에러 시 Werkzeug 인터랙티브 디버거가 노출되어
+    # 원격 코드 실행 위험이 있으므로 앱스토어 등록 전 반드시 확인할 것.
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=5000, debug=debug_mode)

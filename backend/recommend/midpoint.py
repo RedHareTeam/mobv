@@ -1,13 +1,21 @@
 import math
 
 from recommend.place import search_places
-from recommend.intersection import get_intersection_shape, is_within_intersection, utm_to_latlon
+from recommend.intersection import get_intersection_shape, utm_to_latlon
 
 
 def find_best_midpoint(users, radius_expansion=1.0):
     """
-    교집합 영역 내에서 가장 가까운 지하철역 선택.
-    ODsay 대중교통 계산 없이 교집합 centroid 기준 거리만 사용.
+    교집합 centroid에서 가장 가까운 지하철역 선택.
+    ODsay 대중교통 계산 없이 단순 거리만 사용.
+
+    주의: 역이 교집합 폴리곤 "안"에 있는지는 더 이상 체크하지 않는다. 렌즈 모양
+    교집합은 양 끝이 뾰족해서, "폴리곤 안"이라는 조건만으로는 중심에서 1km 이상
+    떨어진 뾰족한 끝 쪽 역이 뽑히는 반면, 중심에 훨씬 가까운 역이 경계 바로 밖에
+    있다는 이유만으로 배제되는 문제가 있었다(실제로 재현해서 확인함). 역은 최종
+    추천 장소가 아니라 "○○역 근처"라는 라벨과 정렬 기준으로만 쓰이므로(실제 장소
+    후보는 별도로 교집합 안으로 필터링됨), 엄격한 폴리곤 포함 여부보다 "중심(공정한
+    지점)과 얼마나 가까운가"가 더 적합한 기준이다.
 
     반환:
     {
@@ -15,7 +23,7 @@ def find_best_midpoint(users, radius_expansion=1.0):
         "center_lat": 37.5573,
         "center_lng": 126.9245,
     }
-    교집합이 없거나 교집합 내 역이 없으면 None 반환.
+    교집합이 없거나 주변에 역이 하나도 없으면 None 반환.
     """
     shape = get_intersection_shape(users, radius_expansion)
     if shape is None:
@@ -32,9 +40,7 @@ def find_best_midpoint(users, radius_expansion=1.0):
         radius=max(base_radius + 500, 2000), size=5,
     )
 
-    # 교집합 내부에 있는 역만 후보로 사용
-    candidates = [s for s in stations if is_within_intersection(s['lat'], s['lng'], shape)]
-    if not candidates:
+    if not stations:
         return None
 
     # centroid와 가장 가까운 역 선택
@@ -43,7 +49,7 @@ def find_best_midpoint(users, radius_expansion=1.0):
         dlng = (station['lng'] - center_lng) * 111000 * 0.82
         return dlat ** 2 + dlng ** 2
 
-    best = min(candidates, key=dist_to_centroid)
+    best = min(stations, key=dist_to_centroid)
 
     return {
         "area_name": best["name"],

@@ -50,11 +50,24 @@ def get_weather_forecast(lat, lng, date_str):
         "appid": OPENWEATHER_API_KEY,
         "units": "metric", "lang": "kr",
     }
-    response = requests.get(OPENWEATHER_FORECAST_URL, params=params, timeout=5)
+
+    try:
+        response = requests.get(OPENWEATHER_FORECAST_URL, params=params, timeout=5)
+    except requests.exceptions.RequestException as e:
+        # place.py의 search_places와 동일한 degrade 패턴: 날씨는 참고용 정보라
+        # 요청 전체를 막을 이유가 없다. 조용히 "알 수 없음"으로 내려준다.
+        print(f"날씨 예보 API 오류: {e}")
+        return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
+
     if response.status_code != 200:
         return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
 
-    forecasts = response.json().get("list", [])
+    try:
+        forecasts = response.json().get("list", [])
+    except ValueError as e:
+        print(f"날씨 예보 응답 파싱 오류: {e}")
+        return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
+
     if not forecasts:
         return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
 
@@ -63,11 +76,17 @@ def get_weather_forecast(lat, lng, date_str):
         forecasts,
         key=lambda f: abs(datetime.fromtimestamp(f['dt'], tz=timezone.utc) - target_dt),
     )
-    return _classify_weather(
-        best["weather"][0]["id"],
-        best["weather"][0]["description"],
-        best["main"]["temp"],
-    )
+
+    try:
+        return _classify_weather(
+            best["weather"][0]["id"],
+            best["weather"][0]["description"],
+            best["main"]["temp"],
+        )
+    except (KeyError, IndexError, TypeError) as e:
+        # OpenWeatherMap이 예상과 다른 구조로 응답해도 예외가 위로 전파되지 않게 한다
+        print(f"날씨 예보 필드 파싱 오류: {e}")
+        return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
 
 
 def get_weather(lat, lng):
@@ -77,13 +96,23 @@ def get_weather(lat, lng):
         "appid": OPENWEATHER_API_KEY,
         "units": "metric", "lang": "kr",
     }
-    response = requests.get(OPENWEATHER_URL, params=params, timeout=5)
+
+    try:
+        response = requests.get(OPENWEATHER_URL, params=params, timeout=5)
+    except requests.exceptions.RequestException as e:
+        print(f"날씨 API 오류: {e}")
+        return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
+
     if response.status_code != 200:
         return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
 
-    data = response.json()
-    return _classify_weather(
-        data["weather"][0]["id"],
-        data["weather"][0]["description"],
-        data["main"]["temp"],
-    )
+    try:
+        data = response.json()
+        return _classify_weather(
+            data["weather"][0]["id"],
+            data["weather"][0]["description"],
+            data["main"]["temp"],
+        )
+    except (ValueError, KeyError, IndexError, TypeError) as e:
+        print(f"날씨 응답 파싱 오류: {e}")
+        return {"condition": "unknown", "temp": 0, "description": "날씨 정보 없음"}
