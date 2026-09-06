@@ -7,6 +7,7 @@ import 'package:mobv/app_theme.dart';
 import 'package:mobv/screens/create_appointment_screen.dart';
 import 'package:mobv/screens/map_screen.dart';
 import 'package:mobv/screens/place_screen.dart';
+import 'package:mobv/screens/date_coordination_screen.dart';
 import 'package:mobv/services/auth_service.dart';
 import 'package:mobv/services/appointment_service.dart';
 import 'package:mobv/widgets/app_dialog.dart';
@@ -147,6 +148,23 @@ class _HomeScreenState extends State<HomeScreen> {
       room['confirmedPlace'] as Map? ?? {},
     );
     final appointmentDate = _appointmentDateFrom(room['appointmentDate']);
+
+    // 1. 날짜 조율 단계인 경우
+    if (status == 'date_voting') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DateCoordinationScreen(
+            roomId: roomId,
+            myUserId: _myUserId,
+            myUserName: _myUserName,
+            myProfileColor: _profileColorValue,
+            members: members,
+          ),
+        ),
+      );
+      return;
+    }
 
     if (_shouldOpenPlaceScreen(status, places, confirmedPlace)) {
       Navigator.push(
@@ -324,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+
               SliverToBoxAdapter(
                 child: Padding(
                   padding: _HomeSpacing.mapCard,
@@ -442,9 +461,9 @@ class _HomeHeader extends StatelessWidget {
         ),
         const Spacer(),
         AppCircleIconButton(icon: Icons.add_rounded, onTap: onCreate),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         AppCircleIconButton(icon: Icons.key_outlined, onTap: onJoinByCode),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         GlassPopupMenu(
           alignRight: true,
           onSelected: (value) {
@@ -473,7 +492,7 @@ class _HomeHeader extends StatelessWidget {
           child: _ProfileAvatar(
             color: profileColor,
             label: userName,
-            size: 52,
+            size: 44,
             loading: profileLoading,
           ),
         ),
@@ -996,6 +1015,7 @@ class _AppointmentStatusBadge extends StatelessWidget {
 
   Color _statusColor(String status) {
     return switch (status) {
+      'date_voting' => const Color(0xFF6366F1),
       'drawing' || 'circleReady' => AppTheme.drawing,
       'voting' || 'recommended' => AppTheme.voting,
       'confirmed' => AppTheme.secondary,
@@ -1005,6 +1025,7 @@ class _AppointmentStatusBadge extends StatelessWidget {
 
   String _statusLabel(String status) {
     return switch (status) {
+      'date_voting' => '날짜 조율',
       'drawing' => '범위 입력',
       'voting' => '장소 선택',
       'dateReady' => '날짜 완료',
@@ -1220,8 +1241,9 @@ class _JoinDialogState extends State<_JoinDialog> {
             ElevatedButton(
               onPressed: _submit,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: AppTheme.textDark,
+                side: const BorderSide(color: AppTheme.border, width: 1),
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 15),
                 shape: RoundedRectangleBorder(

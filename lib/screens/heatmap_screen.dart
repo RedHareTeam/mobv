@@ -1576,47 +1576,34 @@ class _AddRecordSheetState extends State<_AddRecordSheet> {
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: _canSubmit
-                    ? const LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.gradientEnd],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      )
-                    : null,
-                color: _canSubmit ? null : AppTheme.disabled,
-                borderRadius: BorderRadius.circular(16),
+            child: ElevatedButton(
+              onPressed: _canSubmit && !_loading ? _submit : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppTheme.disabledBg,
+                disabledForegroundColor: AppTheme.disabled,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: ElevatedButton(
-                onPressed: _canSubmit && !_loading ? _submit : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ).copyWith(elevation: WidgetStateProperty.all(0)),
-                child: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        '저장',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
                       ),
-              ),
+                    )
+                  : const Text(
+                      '저장',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
             ),
           ),
         ],

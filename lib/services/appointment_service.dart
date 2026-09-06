@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
+import '../models/date_coordination_model.dart';
 
 class AppointmentService {
   final _db = FirebaseFirestore.instance;
@@ -14,9 +15,19 @@ class AppointmentService {
     String category = 'cafe',
     int maxMembers = 99,
     DateTime? appointmentDate,
+    List<DateTime>? candidateDates,
+    bool isDateCoordination = false,
   }) async {
     final roomId = _uuid.v4().substring(0, 8);
     final inviteCode = _uuid.v4().substring(0, 6).toUpperCase();
+
+    final status = isDateCoordination
+        ? 'date_voting'
+        : (appointmentDate == null ? 'waiting' : 'drawing');
+
+    final candidateDateStrings = (candidateDates ?? [])
+        .map((d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}')
+        .toList();
 
     await _db.collection('appointments').doc(roomId).set({
       'createdBy': myUserId,
@@ -24,13 +35,15 @@ class AppointmentService {
       'memberProfiles': {
         myUserId: {'name': myUserName, 'color': myProfileColor},
       },
-      'status': appointmentDate == null ? 'waiting' : 'drawing',
+      'status': status,
       'inviteCode': inviteCode,
       'appointmentTitle': appointmentTitle,
       'category': category,
       'maxMembers': maxMembers,
       if (appointmentDate != null)
         'appointmentDate': Timestamp.fromDate(appointmentDate),
+      'isDateCoordination': isDateCoordination,
+      'candidateDates': candidateDateStrings,
       'selectedDate': null,
       'selectedTimeSlot': null,
       'allDatesCompleted': false,
@@ -39,9 +52,9 @@ class AppointmentService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    await _db.collection('users').doc(myUserId).update({
+    await _db.collection('users').doc(myUserId).set({
       'appointments': FieldValue.arrayUnion([roomId]),
-    });
+    }, SetOptions(merge: true));
 
     return roomId;
   }
@@ -95,10 +108,10 @@ class AppointmentService {
         },
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      // user doc도 같은 트랜잭션에서 업데이트 (불일치 방지)
-      tx.update(userRef, {
+      // user doc도 같은 트랜잭션에서 merge set
+      tx.set(userRef, {
         'appointments': FieldValue.arrayUnion([roomId]),
-      });
+      }, SetOptions(merge: true));
       result = roomId;
     });
 
@@ -107,8 +120,57 @@ class AppointmentService {
 
   bool _canJoinStatus(String status) {
     return status == 'waiting' ||
+        status == 'date_voting' ||
         status == 'drawing' ||
         status == 'circleReady';
+  }
+
+  // ── 날짜 조율 관련 메서드 ──────────────────────────────────
+
+  /// 멤버의 가능한 날짜/시간대 투표 저장
+  Future<void> submitDateVote({
+    required String roomId,
+    required DateVote vote,
+  }) async {
+    await _db
+        .collection('appointments')
+        .doc(roomId)
+        .collection('dateVotes')
+        .doc(vote.userId)
+        .set(vote.toMap());
+
+    // 약속 문서 updatedAt 갱신
+    await _db.collection('appointments').doc(roomId).update({
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 특정 방의 날짜 투표 실시간 스트림
+  Stream<List<DateVote>> watchDateVotes(String roomId) {
+    return _db
+        .collection('appointments')
+        .doc(roomId)
+        .collection('dateVotes')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => DateVote.fromFirestore(doc.id, doc.data()))
+            .toList());
+  }
+
+  /// 방장의 최종 날짜 및 시간대 확정
+  Future<void> confirmAppointmentDate({
+    required String roomId,
+    required DateTime confirmedDate,
+    required String timeSlot,
+  }) async {
+    await _db.collection('appointments').doc(roomId).update({
+      'appointmentDate': Timestamp.fromDate(confirmedDate),
+      'selectedDate': '${confirmedDate.year}-${confirmedDate.month.toString().padLeft(2, '0')}-${confirmedDate.day.toString().padLeft(2, '0')}',
+      'selectedTimeSlot': timeSlot,
+      'status': 'drawing', // 날짜 확정 후 위치(원 그리기) 모드로 전환
+      'allDatesCompleted': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   // 내 약속 목록 실시간 구독

@@ -27,28 +27,23 @@ class GradientButton extends StatelessWidget {
 
     return GestureDetector(
       onTap: active ? onTap : null,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         width: width,
         height: height,
         decoration: BoxDecoration(
-          gradient: active
-              ? const LinearGradient(
-                  colors: [AppTheme.primary, AppTheme.gradientEnd],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                )
-              : null,
-          color: active ? null : AppTheme.disabledBg,
+          color: active ? Colors.white : const Color(0xFFF4F4F5),
           borderRadius: borderRadius,
+          border: Border.all(color: AppTheme.border),
           boxShadow: active
               ? [
                   BoxShadow(
-                    color: AppTheme.primary.withValues(alpha: 0.20),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
                 ]
-              : [],
+              : null,
         ),
         child: Center(
           child: loading
@@ -56,7 +51,7 @@ class GradientButton extends StatelessWidget {
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    color: AppTheme.textDark,
                     strokeWidth: 2,
                   ),
                 )

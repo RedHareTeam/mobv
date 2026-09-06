@@ -4,6 +4,8 @@ import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'app_theme.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env', isOptional: true);
@@ -19,10 +21,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Mobv',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C63FF)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.theme,
       home: const SplashScreen(),
     );
   }

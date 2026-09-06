@@ -130,42 +130,24 @@ class _PrimaryBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = action.destructive
-        ? [AppTheme.error, const Color(0xFFFF7070)]
-        : [AppTheme.primary, AppTheme.gradientEnd];
+    final bgColor = action.destructive ? AppTheme.error : AppTheme.primary;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: colors,
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: action.onTap,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: colors.first.withValues(alpha: 0.28),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: action.onTap,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              action.label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Text(
+            action.label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
             ),
+            textAlign: TextAlign.center,
           ),
         ),
       ),
@@ -293,23 +275,19 @@ class _SecondaryBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: AppTheme.primaryBg,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: action.onTap,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.border),
-          ),
           child: Text(
             action.label,
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: AppTheme.textMuted,
+              color: AppTheme.textBody,
             ),
             textAlign: TextAlign.center,
           ),

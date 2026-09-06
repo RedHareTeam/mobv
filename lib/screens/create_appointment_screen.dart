@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../services/appointment_service.dart';
 import '../widgets/gradient_button.dart';
 import 'map_screen.dart';
+import 'date_coordination_screen.dart';
 
 class CreateAppointmentScreen extends StatefulWidget {
   const CreateAppointmentScreen({super.key});
@@ -20,6 +21,11 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
   static const int _defaultMaxMembers = 99;
   String _category = 'cafe';
   bool _loading = false;
+
+  // 날짜 설정 방식: true = 멤버와 조율하기, false = 지금 바로 확정하기
+  bool _isDateCoordination = true;
+
+  // 단일 날짜/시간 (바로 확정 모드)
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
@@ -31,10 +37,11 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
     if (_titleController.text.trim().isEmpty) {
       return false;
     }
-    if (_selectedDate == null || _selectedTime == null) {
-      return false;
+    if (_isDateCoordination) {
+      return true; // 조율 모드는 방 생성 시 날짜를 고르지 않고 바로 생성
+    } else {
+      return _selectedDate != null && _selectedTime != null;
     }
-    return true;
   }
 
   @override
@@ -122,7 +129,7 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
       ).showSnackBar(const SnackBar(content: Text('약속 이름을 입력해주세요')));
       return;
     }
-    if (_selectedDate == null || _selectedTime == null) {
+    if (!_isDateCoordination && (_selectedDate == null || _selectedTime == null)) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('날짜와 시간을 선택해주세요')));
@@ -138,22 +145,38 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
       appointmentTitle: _titleController.text.trim(),
       category: _category,
       maxMembers: _defaultMaxMembers,
-      appointmentDate: _appointmentDateTime(),
+      isDateCoordination: _isDateCoordination,
+      appointmentDate: !_isDateCoordination ? _appointmentDateTime() : null,
     );
     if (!mounted) return;
     setState(() => _loading = false);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MapScreen(
-          roomId: roomId,
-          myUserId: _myUserId,
-          myUserName: _myUserName,
-          members: [_myUserId],
+    if (_isDateCoordination) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DateCoordinationScreen(
+            roomId: roomId,
+            myUserId: _myUserId,
+            myUserName: _myUserName,
+            myProfileColor: _myProfileColor,
+            members: [_myUserId],
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MapScreen(
+            roomId: roomId,
+            myUserId: _myUserId,
+            myUserName: _myUserName,
+            members: [_myUserId],
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -253,7 +276,7 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
                   const SizedBox(height: 28),
 
                   const Text(
-                    '약속 날짜',
+                    '약속 일정 방식',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -262,27 +285,164 @@ class _CreateAppointmentScreenState extends State<CreateAppointmentScreen> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    '만날 날짜와 시간을 정해주세요',
+                    '친구들과 모일 날짜를 어떻게 정할까요?',
                     style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
                   ),
                   const SizedBox(height: 12),
-                  _PickerTile(
-                    icon: Icons.calendar_month_rounded,
-                    label: _selectedDate != null
-                        ? _formatDate(_selectedDate!)
-                        : '날짜를 선택하세요',
-                    isSelected: _selectedDate != null,
-                    onTap: _pickDate,
+
+                  // 모드 선택 세그먼트
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => setState(() => _isDateCoordination = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              decoration: BoxDecoration(
+                                color: _isDateCoordination ? AppTheme.primary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: _isDateCoordination
+                                    ? [
+                                        BoxShadow(
+                                          color: AppTheme.primary.withValues(alpha: 0.25),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '🤝 멤버와 조율하기',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: _isDateCoordination ? Colors.white : AppTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => setState(() => _isDateCoordination = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              decoration: BoxDecoration(
+                                color: !_isDateCoordination ? AppTheme.primary : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: !_isDateCoordination
+                                    ? [
+                                        BoxShadow(
+                                          color: AppTheme.primary.withValues(alpha: 0.25),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        )
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '📌 지금 바로 확정',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: !_isDateCoordination ? Colors.white : AppTheme.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  _PickerTile(
-                    icon: Icons.access_time_rounded,
-                    label: _selectedTime != null
-                        ? _formatTime(_selectedTime!)
-                        : '시간을 선택하세요',
-                    isSelected: _selectedTime != null,
-                    onTap: _pickTime,
-                  ),
+
+                  const SizedBox(height: 18),
+
+                  if (_isDateCoordination) ...[
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.25),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.calendar_month_rounded,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '약속 방에서 달력으로 조율해요',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.primary,
+                                  ),
+                                ),
+                                SizedBox(height: 5),
+                                Text(
+                                  '방이 생성된 후 나뿐만 아니라 초대된 친구들 모두 달력을 보며 가능한 날짜들을 편하게 고를 수 있어요.',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: AppTheme.textDark,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    _PickerTile(
+                      icon: Icons.calendar_month_rounded,
+                      label: _selectedDate != null
+                          ? _formatDate(_selectedDate!)
+                          : '날짜를 선택하세요',
+                      isSelected: _selectedDate != null,
+                      onTap: _pickDate,
+                    ),
+                    const SizedBox(height: 10),
+                    _PickerTile(
+                      icon: Icons.access_time_rounded,
+                      label: _selectedTime != null
+                          ? _formatTime(_selectedTime!)
+                          : '시간을 선택하세요',
+                      isSelected: _selectedTime != null,
+                      onTap: _pickTime,
+                    ),
+                  ],
                   const SizedBox(height: 28),
 
                   const Text(
@@ -408,33 +568,12 @@ class _PickerTile extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [
-                    AppTheme.cardGradientStart,
-                    AppTheme.cardGradientEnd,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSelected ? null : AppTheme.surface,
+          color: isSelected ? AppTheme.primaryBg : AppTheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? AppTheme.primary.withValues(alpha: 0.4)
-                : AppTheme.border,
+            color: isSelected ? AppTheme.primary : AppTheme.border,
             width: isSelected ? 1.5 : 1,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppTheme.primary.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : [],
         ),
         child: Row(
           children: [
@@ -442,14 +581,7 @@ class _PickerTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.gradientEnd],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: isSelected ? null : AppTheme.bg,
+                color: isSelected ? AppTheme.primary : AppTheme.bg,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(

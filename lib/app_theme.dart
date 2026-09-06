@@ -1,49 +1,47 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  // ── Brand ───────────────────────────────────────────────────
-  static const primary = Color(0xFF5865F2);
-  static const primaryBg = Color(0xFFEFF1FF);
+  // ── Brand (Minimal Monochrome) ────────────────────────────────
+  static const primary = Color(0xFF18181B); // Deep Obsidian / Charcoal
+  static const primaryBg = Color(0xFFF4F4F5); // Soft Light Gray
 
-  static const secondary = Color(0xFF5AD6C0);
-  static const secondaryBg = Color(0xFFEAFBF8);
+  static const secondary = Color(0xFF27272A);
+  static const secondaryBg = Color(0xFFF4F4F5);
 
-  static const accent = Color(0xFF2E9BC8);
-  static const accentBg = Color(0xFFEAF6FB);
+  static const accent = Color(0xFF09090B);
+  static const accentBg = Color(0xFFF4F4F5);
 
   // ── Neutral ──────────────────────────────────────────────────
-  static const bg = Color(0xFFF4F5F8);
+  static const bg = Color(0xFFFAFAFA); // Clean Off-White
   static const surface = Colors.white;
-  static const textDark = Color(0xFF1C2350);
-  static const textBody = Color(0xFF3A4170);
-  static const textMuted = Color(0xFF9AA0BD);
-  static const border = Color(0xFFE6E8F0);
+  static const textDark = Color(0xFF09090B); // Crisp Black
+  static const textBody = Color(0xFF3F3F46); // Readable Dark Gray
+  static const textMuted = Color(0xFF71717A); // Refined Gray
+  static const border = Color(0xFFE4E4E7); // Subtle 1px Border
 
   // ── 상태별 색상 ──────────────────────────────────────────────
   static const drawing = primary;
-  static const voting = accent;
-  static const confirmed = Color(0xFF2BB673);
+  static const voting = secondary;
+  static const confirmed = Color(0xFF16A34A); // Clean Emerald
 
   // ── 비활성 ───────────────────────────────────────────────────
-  static const disabled = Color(0xFFB8BCD0);
-  static const disabledBg = Color(0xFFEDEEFA);
+  static const disabled = Color(0xFFA1A1AA);
+  static const disabledBg = Color(0xFFF4F4F5);
 
   // ── 에러·경고 ────────────────────────────────────────────────
-  static const error = Color(0xFFE5484D);
-  static const warning = Color(0xFFF2A63B);
-  static const warningDark = Color(0xFFB56F00);
+  static const error = Color(0xFFEF4444);
+  static const warning = Color(0xFFF59E0B);
+  static const warningDark = Color(0xFFB45309);
 
-  // ── 그래디언트 끝 색상 ───────────────────────────────────────
-  static const gradientEnd = accent;
-
-  // ── 카드 배경 그래디언트 ─────────────────────────────────────
-  static const cardGradientStart = primaryBg;
-  static const cardGradientEnd = secondaryBg;
+  // ── 단색 통일 (그라데이션 제거) ──────────────────────────────
+  static const gradientEnd = primary;
+  static const cardGradientStart = surface;
+  static const cardGradientEnd = surface;
 
   // ── 히트맵 밀도 색상 ────────────────────────────────────────
-  static const heatmapLow = Color(0xFF5AD6C0);
-  static const heatmapMid = Color(0xFF5865F2);
-  static const heatmapHigh = Color(0xFF2E9BC8);
+  static const heatmapLow = Color(0xFFCBD5E1);
+  static const heatmapMid = Color(0xFF64748B);
+  static const heatmapHigh = Color(0xFF0F172A);
 
   // ── ThemeData ────────────────────────────────────────────────
   static ThemeData get theme => ThemeData(
@@ -51,7 +49,7 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(
       seedColor: primary,
       primary: primary,
-      secondary: accent,
+      secondary: secondary,
       surface: surface,
       error: error,
     ),
@@ -133,19 +131,22 @@ class AppTheme {
 
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: textDark,
+        disabledBackgroundColor: disabledBg,
+        disabledForegroundColor: disabled,
         elevation: 0,
         shadowColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        side: const BorderSide(color: border, width: 1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         textStyle: const TextStyle(
           fontFamily: 'Pretendard',
           fontSize: 15,
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.1,
+          letterSpacing: -0.2,
         ),
-      ).copyWith(elevation: WidgetStateProperty.all(0)),
+      ),
     ),
 
     textButtonTheme: TextButtonThemeData(

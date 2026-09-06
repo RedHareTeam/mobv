@@ -431,10 +431,20 @@ class _PlaceScreenState extends State<PlaceScreen>
 
   @override
   Widget build(BuildContext context) {
-    final votedCount = _votes.where((v) => v['selectedPlaceId'] != null).length;
+    final votedCount =
+        _votes.where((v) => v['selectedPlaceId'] != null).length;
     final voteRatio = widget.members.isEmpty
         ? 0.0
         : votedCount / widget.members.length;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    // 현재 최다 득표수 계산
+    int maxVotes = 0;
+    for (final p in widget.places) {
+      final pid = p['kakaoId'] ?? '';
+      final count = _votes.where((v) => v['selectedPlaceId'] == pid).length;
+      if (count > maxVotes) maxVotes = count;
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.bg,
@@ -443,56 +453,102 @@ class _PlaceScreenState extends State<PlaceScreen>
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 20, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: SizedBox(
                 height: 44,
-                child: Stack(
-                  alignment: Alignment.center,
+                child: Row(
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: AppCircleIconButton(
-                        icon: Icons.chevron_left_rounded,
-                        size: 38,
-                        iconSize: 22,
-                        onTap: () => Navigator.pop(context),
+                    AppCircleIconButton(
+                      icon: Icons.chevron_left_rounded,
+                      size: 38,
+                      iconSize: 22,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        '장소 투표',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.textDark,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     ),
-                    const Text(
-                      '장소 선택',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textDark,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _VoteStatusPill(
-                            votedCount: votedCount,
-                            memberCount: widget.members.length,
-                            completed: voteRatio == 1.0,
-                          ),
-                          const SizedBox(width: 8),
-                          _PlaceMenuButton(
-                            onRedraw: _resetAndRedraw,
-                            onExit: _deleteAndExit,
-                          ),
-                        ],
-                      ),
+                    _PlaceMenuButton(
+                      onRedraw: _resetAndRedraw,
+                      onExit: _deleteAndExit,
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          // ── 탭 바 (pill 스타일) ──
+
+          // ── 투표 진행 현황 카드 ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.how_to_vote_rounded,
+                          size: 16, color: AppTheme.primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        '추천 장소 ${widget.places.length}곳 중 마음에 드는 곳을 골라주세요',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: voteRatio,
+                            minHeight: 6,
+                            backgroundColor: AppTheme.primaryBg,
+                            valueColor: const AlwaysStoppedAnimation(
+                              AppTheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '$votedCount/${widget.members.length}명 투표 완료',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── 탭 바 ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
             child: Container(
               height: 42,
               decoration: BoxDecoration(
@@ -503,15 +559,13 @@ class _PlaceScreenState extends State<PlaceScreen>
               child: TabBar(
                 controller: _tabController,
                 tabs: const [
-                  Tab(text: '목록'),
-                  Tab(text: '지도'),
+                  Tab(text: '목록보기'),
+                  Tab(text: '지도보기'),
                 ],
                 labelColor: Colors.white,
                 unselectedLabelColor: AppTheme.textMuted,
                 indicator: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppTheme.primary, AppTheme.gradientEnd],
-                  ),
+                  color: AppTheme.primary,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
@@ -557,19 +611,24 @@ class _PlaceScreenState extends State<PlaceScreen>
                         )
                         .where((v) => v.name.isNotEmpty)
                         .toList();
-                    final url = (place['url'] ?? place['kakaoUrl']) as String?;
+                    final isLeading =
+                        maxVotes > 0 && voters.length == maxVotes;
+                    final url =
+                        (place['url'] ?? place['kakaoUrl']) as String?;
+
                     return _PlaceCard(
                       place: place,
                       placeId: placeId,
                       rank: index + 1,
                       isSelected: isSelected,
+                      isLeading: isLeading,
                       voters: voters,
                       onSelect: () => _selectPlace(placeId),
                       onDetail: url != null && url.isNotEmpty
                           ? () => launchUrl(
-                              Uri.parse(url),
-                              mode: LaunchMode.inAppBrowserView,
-                            )
+                                Uri.parse(url),
+                                mode: LaunchMode.inAppBrowserView,
+                              )
                           : null,
                     );
                   },
@@ -592,55 +651,73 @@ class _PlaceScreenState extends State<PlaceScreen>
           ),
         ],
       ),
-    );
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-// 장소 카드
-// ════════════════════════════════════════════════════════════
-
-class _VoteStatusPill extends StatelessWidget {
-  final int votedCount;
-  final int memberCount;
-  final bool completed;
-
-  const _VoteStatusPill({
-    required this.votedCount,
-    required this.memberCount,
-    required this.completed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = completed ? AppTheme.confirmed : AppTheme.primary;
-
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.how_to_vote_outlined, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            '$votedCount/$memberCount',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: color,
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPad),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: AppTheme.border, width: 1),
+          ),
+        ),
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _mySelectedId != null
+                  ? Colors.white
+                  : AppTheme.disabledBg,
+              foregroundColor: _mySelectedId != null
+                  ? AppTheme.textDark
+                  : AppTheme.textMuted,
+              disabledBackgroundColor: _mySelectedId != null
+                  ? Colors.white
+                  : AppTheme.disabledBg,
+              disabledForegroundColor: _mySelectedId != null
+                  ? AppTheme.textDark
+                  : AppTheme.textMuted,
+              side: BorderSide(
+                color: _mySelectedId != null
+                    ? AppTheme.border
+                    : Colors.transparent,
+                width: 1,
+              ),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _mySelectedId != null
+                      ? Icons.check_circle_rounded
+                      : Icons.touch_app_outlined,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _mySelectedId != null
+                      ? '투표 완료 ($votedCount/${widget.members.length}명 참여 중)'
+                      : '원하는 장소 카드를 탭하여 투표해주세요',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════
+// 장소 카드 & 메뉴
+// ════════════════════════════════════════════════════════════
 
 class _PlaceMenuButton extends StatelessWidget {
   final VoidCallback onRedraw;
@@ -717,6 +794,7 @@ class _PlaceCard extends StatelessWidget {
   final String placeId;
   final int rank;
   final bool isSelected;
+  final bool isLeading;
   final List<_VoteChipData> voters;
   final VoidCallback onSelect;
   final VoidCallback? onDetail;
@@ -726,6 +804,7 @@ class _PlaceCard extends StatelessWidget {
     required this.placeId,
     required this.rank,
     required this.isSelected,
+    this.isLeading = false,
     required this.voters,
     required this.onSelect,
     this.onDetail,
@@ -735,179 +814,219 @@ class _PlaceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final category = (place['category'] as String?) ?? '';
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isSelected
-              ? AppTheme.primary.withValues(alpha: 0.6)
-              : AppTheme.border,
-          width: isSelected ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isSelected
-                ? AppTheme.primary.withValues(alpha: 0.1)
-                : Colors.black.withValues(alpha: 0.04),
-            blurRadius: isSelected ? 16 : 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onSelect,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? AppTheme.primary : AppTheme.border,
+                width: isSelected ? 1.8 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? AppTheme.primary.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.03),
+                  blurRadius: isSelected ? 14 : 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 번호 뱃지
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppTheme.primary.withValues(alpha: 0.1)
-                        : AppTheme.bg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$rank',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected
-                            ? AppTheme.primary
-                            : AppTheme.textMuted,
+                // ── 상단 행: 순위, 1위 배지, 지도 링크, 선택 라디오 ──
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // 장소 정보
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        place['name'] ?? '',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: AppTheme.textDark,
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppTheme.primaryBg : AppTheme.bg,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '#$rank',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected
+                              ? AppTheme.primary
+                              : AppTheme.textMuted,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
+                    ),
+                    if (isLeading) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('👑 ', style: TextStyle(fontSize: 11)),
+                            Text(
+                              '1위 후보 (${voters.length}표)',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFB45309),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    if (onDetail != null) ...[
+                      InkWell(
+                        onTap: onDetail,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '지도',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textDark,
+                                ),
+                              ),
+                              SizedBox(width: 3),
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                size: 12,
+                                color: AppTheme.textMuted,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 22,
+                      color: isSelected ? AppTheme.primary : AppTheme.border,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // ── 장소명 & 주소 ──
+                Text(
+                  place['name'] ?? '',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 17,
+                    color: AppTheme.textDark,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.place_outlined,
+                      size: 14,
+                      color: AppTheme.textMuted,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
                         place['address'] ?? '',
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: AppTheme.textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (category.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.bg,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            category,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.textMuted,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // 우측 버튼 영역
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (onDetail != null)
-                      GestureDetector(
-                        onTap: onDetail,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppTheme.bg,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.map_outlined,
-                            size: 16,
-                            color: AppTheme.primary,
-                          ),
-                        ),
-                      ),
-                    GestureDetector(
-                      onTap: onSelect,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: isSelected
-                              ? const LinearGradient(
-                                  colors: [
-                                    AppTheme.primary,
-                                    AppTheme.gradientEnd,
-                                  ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                )
-                              : null,
-                          color: isSelected ? null : AppTheme.bg,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          isSelected
-                              ? Icons.check_rounded
-                              : Icons.check_circle_outline_rounded,
-                          size: 16,
-                          color: isSelected ? Colors.white : AppTheme.primary,
-                        ),
-                      ),
                     ),
                   ],
                 ),
+                if (category.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bg,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Text(
+                      category,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+
+                // ── 투표자 목록 ──
+                if (voters.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: AppTheme.border),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text(
+                        '투표한 멤버: ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textMuted,
+                        ),
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: voters
+                              .map((voter) => _VoterChip(voter: voter))
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
-
-            // 투표자 닉네임
-            if (voters.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: AppTheme.border),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: voters
-                    .map((voter) => _VoterChip(voter: voter))
-                    .toList(),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

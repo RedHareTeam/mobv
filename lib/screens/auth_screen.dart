@@ -298,9 +298,11 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                     child: ElevatedButton(
                       onPressed: _loading ? null : _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppTheme.disabled,
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTheme.textDark,
+                        disabledBackgroundColor: AppTheme.disabledBg,
+                        disabledForegroundColor: AppTheme.disabled,
+                        side: const BorderSide(color: AppTheme.border, width: 1),
                         elevation: 0,
                         shadowColor: Colors.transparent,
                         shape: RoundedRectangleBorder(
@@ -312,7 +314,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
+                                color: AppTheme.textDark,
                                 strokeWidth: 2,
                               ),
                             )
