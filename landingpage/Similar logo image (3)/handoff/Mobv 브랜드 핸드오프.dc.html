@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>html,body{margin:0;padding:0}</style>
+</helmet>
+
+<div style="min-height:100vh;background:#e9ebf1;font-family:'Poppins',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;padding:56px 24px;box-sizing:border-box;display:flex;justify-content:center">
+  <div style="width:920px;background:#ffffff;border-radius:8px;box-shadow:0 12px 40px rgba(28,35,80,0.10);overflow:hidden">
+
+    <!-- Masthead -->
+    <div style="padding:48px 56px 40px;border-bottom:1px solid #eef0f5;display:flex;align-items:flex-end;justify-content:space-between">
+      <div>
+        <div style="font-size:12px;font-weight:600;letter-spacing:2px;color:#9aa0bd;text-transform:uppercase">Brand Handoff · for Flutter</div>
+        <div style="font-size:30px;font-weight:700;color:#1c2350;margin-top:10px;letter-spacing:-0.5px">Mobv 디자인 핸드오프</div>
+        <div style="font-size:15px;color:#9aa0bd;margin-top:4px">모두가 괜찮은 곳에서 만나요 — Where everyone meets.</div>
+      </div>
+      <!-- mini wordmark -->
+      <div style="line-height:1;color:#1c2350;font-weight:700;font-size:46px;letter-spacing:-1.4px;white-space:nowrap"><span>M</span><svg width="41" height="28" viewBox="0 0 172 116" style="display:inline-block;margin:0;vertical-align:-1px"><defs><clipPath id="hl"><circle cx="58" cy="58" r="58"/></clipPath></defs><circle cx="58" cy="58" r="58" fill="#5865f2"/><circle cx="114" cy="58" r="58" fill="#5ad6c0"/><g clip-path="url(#hl)"><circle cx="114" cy="58" r="58" fill="#2e9bc8"/></g></svg><span>bv</span></div>
+    </div>
+
+    <!-- Logo lockup -->
+    <div style="padding:44px 56px">
+      <div style="font-size:13px;font-weight:600;letter-spacing:1.5px;color:#5865f2;text-transform:uppercase;margin-bottom:20px">01 — 로고</div>
+      <div style="display:flex;gap:20px">
+        <div style="flex:1.6;background:#f4f5f8;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:46px">
+          <div style="line-height:1;color:#1c2350;font-weight:700;font-size:96px;letter-spacing:-2.8px;white-space:nowrap"><span>M</span><svg width="86" height="58" viewBox="0 0 172 116" style="display:inline-block;margin:0 1px;vertical-align:-1px"><defs><clipPath id="ll"><circle cx="58" cy="58" r="58"/></clipPath></defs><circle cx="58" cy="58" r="58" fill="#5865f2"/><circle cx="114" cy="58" r="58" fill="#5ad6c0"/><g clip-path="url(#ll)"><circle cx="114" cy="58" r="58" fill="#2e9bc8"/></g></svg><span>bv</span></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:20px">
+          <div style="flex:1;background:#f4f5f8;border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <svg width="110" height="74" viewBox="0 0 172 116">
+              <defs><clipPath id="ml"><circle cx="58" cy="58" r="58"/></clipPath></defs>
+              <circle cx="58" cy="58" r="58" fill="#5865f2"/>
+              <circle cx="114" cy="58" r="58" fill="#5ad6c0"/>
+              <g clip-path="url(#ml)"><circle cx="114" cy="58" r="58" fill="#2e9bc8"/></g>
+            </svg>
+          </div>
+          <div style="flex:1;background:#f4f5f8;border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <svg width="96" height="96" viewBox="0 0 1024 1024" style="border-radius:21px;box-shadow:0 4px 14px rgba(28,35,80,0.12)">
+              <defs><clipPath id="al"><circle cx="412" cy="512" r="210"/></clipPath></defs>
+              <rect width="1024" height="1024" rx="230" fill="#fff"/>
+              <circle cx="412" cy="512" r="210" fill="#5865f2"/>
+              <circle cx="612" cy="512" r="210" fill="#5ad6c0"/>
+              <g clip-path="url(#al)"><circle cx="612" cy="512" r="210" fill="#2e9bc8"/></g>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:28px;margin-top:14px;font-size:12.5px;color:#9aa0bd">
+        <span style="flex:1.6">기본 워드마크</span>
+        <span style="flex:1">심볼 마크 · 앱 아이콘</span>
+      </div>
+    </div>
+
+    <!-- Colors -->
+    <div style="padding:8px 56px 44px">
+      <div style="font-size:13px;font-weight:600;letter-spacing:1.5px;color:#5865f2;text-transform:uppercase;margin-bottom:20px">02 — 컬러 토큰</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <!-- swatch -->
+        <div style="border:1px solid #eef0f5;border-radius:8px;overflow:hidden">
+          <div style="height:84px;background:#5865f2"></div>
+          <div style="padding:12px 14px 14px">
+            <div style="font-size:14px;font-weight:600;color:#1c2350">Primary · Indigo</div>
+            <div style="font-size:12px;color:#9aa0bd;margin-top:2px">신뢰감 / 전문성</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#3a4170;margin-top:10px">#5865F2</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#5865f2;margin-top:3px">Color(0xFF5865F2)</div>
+          </div>
+        </div>
+        <div style="border:1px solid #eef0f5;border-radius:8px;overflow:hidden">
+          <div style="height:84px;background:#5ad6c0"></div>
+          <div style="padding:12px 14px 14px">
+            <div style="font-size:14px;font-weight:600;color:#1c2350">Secondary · Mint</div>
+            <div style="font-size:12px;color:#9aa0bd;margin-top:2px">친근함 / 활기</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#3a4170;margin-top:10px">#5AD6C0</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#2aa892;margin-top:3px">Color(0xFF5AD6C0)</div>
+          </div>
+        </div>
+        <div style="border:1px solid #eef0f5;border-radius:8px;overflow:hidden">
+          <div style="height:84px;background:#2e9bc8"></div>
+          <div style="padding:12px 14px 14px">
+            <div style="font-size:14px;font-weight:600;color:#1c2350">Accent · Teal</div>
+            <div style="font-size:12px;color:#9aa0bd;margin-top:2px">합의 / 교집합</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#3a4170;margin-top:10px">#2E9BC8</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#2680a8;margin-top:3px">Color(0xFF2E9BC8)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- neutrals row -->
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px">
+        <div style="text-align:left">
+          <div style="height:52px;background:#1c2350;border-radius:7px"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Title</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#1C2350</div>
+        </div>
+        <div>
+          <div style="height:52px;background:#3a4170;border-radius:7px"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Body</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#3A4170</div>
+        </div>
+        <div>
+          <div style="height:52px;background:#9aa0bd;border-radius:7px"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Muted</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#9AA0BD</div>
+        </div>
+        <div>
+          <div style="height:52px;background:#e6e8f0;border-radius:7px"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Border</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#E6E8F0</div>
+        </div>
+        <div>
+          <div style="height:52px;background:#f4f5f8;border-radius:7px;border:1px solid #eef0f5"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Background</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#F4F5F8</div>
+        </div>
+        <div>
+          <div style="height:52px;background:#ffffff;border-radius:7px;border:1px solid #e6e8f0"></div>
+          <div style="font-size:11.5px;font-weight:600;color:#1c2350;margin-top:8px">Surface</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9aa0bd">#FFFFFF</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assets + rules -->
+    <div style="padding:8px 56px 52px;display:flex;gap:36px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;letter-spacing:1.5px;color:#5865f2;text-transform:uppercase;margin-bottom:18px">03 — 전달 에셋</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#3a4170;white-space:nowrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#e6fbf4;color:#2aa892;padding:3px 8px;border-radius:5px">PNG</span>mobv-wordmark.png <span style="color:#9aa0bd">· 워드마크(투명)</span></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#3a4170;white-space:nowrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#eef0ff;color:#5865f2;padding:3px 8px;border-radius:5px">SVG</span>mobv-symbol.svg <span style="color:#9aa0bd">· 심볼(벡터)</span></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#3a4170;white-space:nowrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#eef0ff;color:#5865f2;padding:3px 8px;border-radius:5px">SVG</span>mobv-app-icon.svg <span style="color:#9aa0bd">· 앱 아이콘</span></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#3a4170;white-space:nowrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#e6fbf4;color:#2aa892;padding:3px 8px;border-radius:5px">DART</span>app_colors.dart <span style="color:#9aa0bd">· 컬러 상수</span></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#3a4170;white-space:nowrap"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;background:#e6fbf4;color:#2aa892;padding:3px 8px;border-radius:5px">DART</span>mobv_logo.dart <span style="color:#9aa0bd">· 로고 위젯</span></div>
+        </div>
+        <div style="margin-top:14px;font-size:12px;color:#9aa0bd;line-height:1.6">심볼·아이콘은 <span style="font-family:'JetBrains Mono',monospace;color:#3a4170">flutter_svg</span>로, 워드마크는 투명 PNG로 사용하세요. 자세한 적용은 <span style="font-family:'JetBrains Mono',monospace;color:#3a4170">README.md</span> 참고.</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;letter-spacing:1.5px;color:#5865f2;text-transform:uppercase;margin-bottom:18px">04 — 타이포 & 규칙</div>
+        <div style="font-size:13.5px;color:#3a4170;line-height:1.75">
+          <div>· 워드마크 / 영문: <strong style="color:#1c2350">Poppins</strong> (600–700)</div>
+          <div>· 한글 본문: <strong style="color:#1c2350">Pretendard</strong> 권장</div>
+          <div>· 심볼 보호 여백: 원 지름의 <strong style="color:#1c2350">50%</strong> 이상</div>
+          <div>· 워드마크 최소 폭: <strong style="color:#1c2350">96px</strong></div>
+          <div style="color:#9aa0bd;margin-top:8px">⌀ 두 원의 색·겹침 비율은 변경 금지</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
