@@ -1,294 +1,134 @@
 # Mobv Backend
 
-> 모두가 괜찮은 곳에서 만나요 — 선호 범위 교집합 기반 약속 장소 추천 API
+여러 명이 각자 그린 "이동 가능 범위"의 교집합을 계산하고, 그 안에서 만날 장소를 추천하는 Flask API 서버입니다.
 
----
+## 빠른 시작
 
-### category
-
-- 교집합 확인 후 사용자가 카테고리를 선택하는 화면 추가
-- 선택한 `category` 값을 `/recommend` 요청에 포함
-- 고정 버튼 + 직접 입력창 조합 권장
-- 직접 입력: 자유 텍스트
-- 영어 값(`cafe`, `restaurant` 등)도 백엔드에서 자동으로 한글 카테고리로 변환됨
-
+```bash
+pip install flask flask-cors shapely pyproj python-dotenv requests pytest
 ```
 
-맛집, 술집, 카페, 디저트, 고기, 라멘, 초밥, 피자, 파스타, 마라탕, 국밥
-
-──────────────────────────────
-직접 검색  [ 우동________________ ]
+`.env` 파일:
+```
+KAKAO_REST_KEY=카카오_로컬_API_REST_키
+OPENWEATHER_API_KEY=오픈웨더맵_키
+FLASK_DEBUG=false   # 배포 환경 필수. 로컬 디버깅 때만 true
 ```
 
-> 백엔드는 고정 카테고리 외 자유 검색도 지원
-> `category`에 "우동", "냉면", "브런치" 등 넣으면 카카오 키워드 검색으로 그대로 넘어감.
+```bash
+python app.py   # http://localhost:5000
+```
 
----
+## API
 
-## 1주차 변경 사항 (Chemeet → Mobv 리뉴얼)
-
-### 제거한 것들
-
-| 항목 | 이유 |
-|---|---|
-| `kakao_parser.py` | 카카오톡 대화 파싱 — 업로드 기능 제거로 불필요 |
-| `openai_analyzer.py` | GPT-4o-mini 취향 분석 — 업로드 기능 제거로 불필요 |
-| `rule_based.py` | 친밀도 점수 / 반경 확장 로직 |
-| `transit.py` | ODsay 대중교통 이동시간 계산 |
-| `/analyze` 엔드포인트 | 카카오톡 분석 API 전체 |
-| `intimacy_score`, `radius_expansion` 파라미터 | 카카오톡 분석 없이 의미 없음 |
-| 교집합 없을 때 중간지점 fallback | "겹치는 곳 없음" 안내로 대체 |
-| 날씨 기반 반경 자동 조정 | 사용자가 직접 그린 원을 서버가 임의로 변경하는 구조 제거 |
-
-### 변경한 것들
-
-| 항목 | 변경 내용 |
-|---|---|
-| `midpoint.py` | ODsay 제거 → 교집합 centroid 기준 가장 가까운 지하철역 선택으로 단순화 |
-| `intersection.py` | 교집합 없을 때 fallback 제거 → `has_intersection: False` 반환 |
-| `query_builder.py` | mood/purpose/preferred_food 기반 복잡한 쿼리 → **카테고리 단일 선택** 방식으로 단순화 |
-| `/recommend` 요청 형식 | `user1/user2` → `users` 리스트, `place_type/mood` → `category` |
-| `/recommend` 응답 형식 | `has_intersection` → `hasIntersection` (camelCase), `users_transit/total_time` 제거 |
-
-### 추가한 것들
-
-| 항목 | 내용 |
-|---|---|
-| 카테고리 기반 장소 검색 | 사용자가 직접 카테고리 선택 (카페/한식/라멘/피자 등 15개) |
-| 프랜차이즈 블랙리스트 | 카페(저가 프랜차이즈), 피자(대형 체인), 한식(빠른 식사용) 필터링 |
-| 멀티쿼리 검색 | 파스타/피자는 2개 쿼리 병렬 검색으로 결과 수 보완 |
-| shape 기반 교집합 필터 | 교집합 shape을 한 번만 계산해서 장소 필터링에 재사용 |
-
----
-
-## 2주차 변경 사항
-
-### 제거한 것들
-
-| 항목 | 이유 |
-|---|---|
-| `user1/user2` 구버전 호환 코드 | 프론트가 `users` 리스트 형식으로 완전히 전환됨에 따라 정리 |
-| `weather.py`의 `apply_weather_filter` | 1주차에 이미 미사용 처리된 날씨 기반 반경 조정 로직의 잔여 함수 |
-
-### 추가한 것들
-
-| 항목 | 내용 |
-|---|---|
-| `CATEGORY_MAP_EN` | 영어 카테고리 값(`cafe`, `restaurant`, `bar`, `dessert`, `meat`, `ramen`, `sushi`, `pizza`, `pasta`, `malatang`, `gukbap`, `korean`, `chinese`, `japanese`, `cutlet`, `izakaya`)을 한글로 자동 변환 |
-| Firestore Security Rules | `memberProfiles` 맵 구조 기준으로 설계 및 게시 완료. 약속 문서는 멤버만 읽기/수정 가능, 생성자만 삭제 가능. `circles`/`availabilities` 서브컬렉션은 본인 uid 문서만 쓰기 가능 |
-| 다자간(3~5인) 교집합 검증 테스트 | 정상 케이스(신촌 생활권 좌표)와 실패 케이스(원거리 좌표) 모두 검증하는 테스트 시나리오 추가 |
-
-
----
-
-## API 명세
-
-### POST /recommend
+### `POST /recommend`
 
 **요청**
-
 ```json
 {
   "users": [
-    {"lat": 37.5573, "lng": 126.9245, "radius": 3000},
-    {"lat": 37.5443, "lng": 126.9526, "radius": 3000}
+    {"lat": 37.5665, "lng": 126.9780, "radius": 1500},
+    {"lat": 37.5675, "lng": 126.9790, "radius": 1500}
   ],
-  "category": "라멘"
+  "category": "cafe"
 }
 ```
+| 필드 | 설명 |
+|---|---|
+| `users` | 2~5명. 각 `lat`(-90~90) / `lng`(-180~180) / `radius`(0 초과 ~20000m) |
+| `category` | `cafe`/`restaurant`/`bar`/`study` (프론트 실제 선택지) 또는 17개 한글 카테고리 (아래 참고) |
 
-| 필드 | 타입 | 설명 |
-|---|---|---|
-| `users` | Array | 2~5명의 위치/반경 정보 |
-| `users[].lat` | float | 위도 |
-| `users[].lng` | float | 경도 |
-| `users[].radius` | int | 반경 (미터) |
-| `category` | string | 장소 카테고리 (아래 목록 참고). 영어 값도 자동 변환됨 |
+**응답 — 세 가지 케이스**
 
-**지원 카테고리 (한글)**
-
-```
-카페, 디저트
-한식, 중식, 돈까스, 라멘, 파스타, 피자, 초밥, 고기, 국밥, 분식
-술집, 이자카야, 바
-```
-
-**지원 카테고리 (영어 → 자동 변환)**
-
-```
-cafe, restaurant, bar, dessert, meat, ramen, sushi,
-pizza, pasta, malatang, gukbap, korean, chinese, japanese,
-cutlet, izakaya
-```
-
-**응답 — 교집합 있을 때**
+| 상황 | `hasIntersection` | `places` | 추가 필드 |
+|---|---|---|---|
+| 전원 교집합 있음 | `true` | 채워짐 | `area_name`, `search_radius`, `weather` |
+| 일부만 겹침 | `false` | `[]` | `partialMatch` |
+| 아무 조합도 안 겹침 | `false` | `[]` | 없음 (키 자체가 없음) |
 
 ```json
+// 전원 교집합 있음
 {
-  "hasIntersection": true,
-  "area_name": "서강대역 경의중앙선",
-  "center_lat": 37.550801,
-  "center_lng": 126.938551,
-  "search_radius": 3994,
-  "weather": {
-    "condition": "clouds",
-    "temp": 25.1,
-    "description": "구름조금"
-  },
-  "places": [
-    {
-      "name": "멘야요시",
-      "address": "서울 마포구 ...",
-      "category": "음식점 > 일식 > 라멘",
-      "lat": 37.549,
-      "lng": 126.937,
-      "url": "https://place.map.kakao.com/...",
-      "distance": 195,
-      "kakaoId": "12345678"
-    }
-  ]
+  "hasIntersection": true, "area_name": "시청역",
+  "center_lat": 37.567, "center_lng": 126.9785, "search_radius": 1452,
+  "weather": {"condition": "clouds", "description": "흐림", "temp": 24.8},
+  "places": [{"name": "...", "category": "...", "distance": 765, "url": "...", "...": "..."}]
 }
-```
 
-**응답 — 교집합 없을 때**
-
-```json
+// 일부만 겹침
 {
   "hasIntersection": false,
-  "message": "겹치는 지역이 없어요. 반경을 조금만 넓히면 새로운 추천 결과를 볼 수 있어요.",
-  "places": []
+  "message": "거의 다 만날 수 있는 지점이에요. 조금만 반경을 넓히면 될 것 같아요.",
+  "places": [],
+  "partialMatch": {"center_lat": 37.567, "center_lng": 126.9785, "matched_count": 4, "total_count": 5, "search_radius": 1452}
 }
+
+// 아무 조합도 안 겹침
+{ "hasIntersection": false, "message": "겹치는 지역이 없어요. 반경을 조금만 넓히면 새로운 추천 결과를 볼 수 있어요.", "places": [] }
 ```
 
-**에러 응답**
+### `GET /weather/forecast?lat=&lng=&date=`
+약속 날짜의 예보 날씨. 5일 초과 시 `condition: "unknown"`.
 
-| 상태코드 | 설명 |
+## 폴더 구조
+
+| 파일 | 역할 |
 |---|---|
-| 400 | users가 없거나 2명 미만, 또는 5명 초과 |
-| 422 | 추천 장소가 2개 미만 (원을 더 넓게 그려야 함) |
+| `app.py` | 라우트, 입력 검증, 에러 핸들링 |
+| `recommend/intersection.py` | 원 교집합 계산, 부분 매칭 |
+| `recommend/place.py` | 카카오 로컬 API 검색 (타임아웃/파싱 방어, radius 20000 clamp) |
+| `recommend/query_builder.py` | 카테고리 → 검색어/필터, 프랜차이즈 블랙리스트 |
+| `recommend/midpoint.py` | 교집합 중심에서 가장 가까운 지하철역 |
+| `recommend/weather.py` | 날씨 (참고용, 검색 로직엔 관여 안 함) |
 
----
+## 카테고리
 
-### GET /weather/forecast
+**프론트 실제 선택지 4개**: `cafe`(카페) / `restaurant`(맛집) / `bar`(술집) / `study`(카공카페)
 
-약속 날짜의 예보 날씨 반환 (OpenWeatherMap 5일 예보, 무료 플랜 기준)
+**백엔드 지원 나머지 13개** (한글 값 그대로 보내면 동작): 한식·마라탕·돈까스·라멘·파스타·피자·초밥·고기·국밥·분식·이자카야·바·디저트
 
-**요청**
+`study`는 "여럿이 카페에서 노트북 작업"용이며, 개인 열람실형 "스터디카페"(공간대여업)와는 다른 개념입니다. 카카오 API가 와이파이/콘센트 정보를 안 줘서 완벽한 필터링은 불가능하고, 검색어(`카공카페`+`조용한 카페`)로 얻을 수 있는 최선까지만 합니다. 최종 판단은 사용자가 카카오맵 링크로 확인.
 
-```
-GET /weather/forecast?date=2026-07-01&lat=37.5665&lng=126.9780
-```
+## 테스트
 
-**응답**
-
-```json
-{
-  "condition": "clear",
-  "temp": 28.5,
-  "description": "맑음"
-}
+```bash
+python -m pytest test_recommend.py -v   # 48개, 전부 mock — 로직 검증
+python smoke_test.py                     # 실제 API 호출 — 배포 전 눈으로 확인
 ```
 
----
+## 알려진 제약사항
 
-## Firestore Security Rules
+- 카카오 로컬 API에 평점/리뷰/편의시설 정보 없음 → `study` 카테고리 품질 제한적
+- `find_best_midpoint`는 카카오 검색 상위 5개(`sort=accuracy`) 안에서만 역을 찾음
 
-`appointments` 문서가 `members` 배열이 아니라 `memberProfiles` 맵(key: uid) 구조를 사용한다는 점을 기준으로 설계했다.
+## 향후 계획 
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+**1. (최우선) 교집합 실패 메시지 톤 — "인원수" 대신 "실제 거리" 기준으로**
 
-    match /appointments/{appointmentId} {
-      allow read: if request.auth != null
-        && request.auth.uid in resource.data.memberProfiles;
-      allow update: if request.auth != null
-        && request.auth.uid in resource.data.memberProfiles;
-      allow create: if request.auth != null;
-      allow delete: if request.auth != null
-        && request.auth.uid == resource.data.createdBy;
+지금은 `missing = total - matched`가 1 이하면 "거의 다 됐다" 톤을 씁니다. 하지만 신촌 4명 + 강남 1명처럼 `missing=1`이어도 실제 격차가 8km+ 일 수 있어(재현 확인함), 인원수만으로는 부정확합니다. 완전 매칭 실패(서울-부산) 폴백 메시지도 같은 문제입니다.
+→ `find_best_partial_intersection`이 "제외된 사용자가 매칭 영역까지 얼마나 떨어져 있는지" 집계값(개인 지목 없이)을 같이 반환하고, 그 값으로 톤을 결정하도록 변경.
 
-      match /circles/{uid} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null
-          && request.auth.uid == uid;
-      }
+**2. `_validate_users`의 bool 허점**
 
-      match /availabilities/{uid} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null
-          && request.auth.uid == uid;
-      }
-
-      match /votes/{voteId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null;
-      }
-
-      match /messages/{messageId} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null;
-      }
-    }
-
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-        && request.auth.uid == userId;
-    }
-  }
-}
+```python
+if not isinstance(u[key], (int, float)):   # bool은 int의 서브클래스라 True/False가 통과함
+```
+```python
+if isinstance(u[key], bool) or not isinstance(u[key], (int, float)):
 ```
 
-`availabilities`는 날짜 조율 기능이 아직 구현되지 않아 실제 데이터는 없지만, 추후 구현을 대비해 미리 규칙에 포함했다.
+**3. 지하철역 검색 — `sort=accuracy` 대신 `sort=distance` 검토**
 
----
+일반 장소 검색은 관련도 기준이 맞지만, 역 찾기는 순수 거리가 중요한 용도라 다를 수 있음. `size=5` 제한과 겹쳐 진짜 최근접 역을 놓칠 가능성. "역 라벨이 이상하다"는 피드백이 나오면 여기부터 의심.
 
-## 앞으로 고려할 것들
+**그 외 보류 중**: 16개 카테고리 UI 확장(백엔드 준비 완료, 프론트 스코프 아님) / [cagongi.com](https://cagongi.com)(전국 카공카페 DB) 연동 검토(API·이용약관 확인 필요)
 
-### 카테고리 관련
+## 핵심 원칙
 
-- [x] **교집합 확인 후 카테고리 선택** (채택)
-  - 위치를 먼저 결정한 뒤 장소 종류를 선택하는 흐름이 자연스럽고 변경도 쉬움
-  - 방 생성 시 미리 선택하면 나중에 바꾸기 어려운 문제 방지
-- [x] **영어 카테고리 값 자동 변환** (2주차 임시 대응)
-  - 프론트 카테고리 선택 UI가 확정되면 매핑 유지 여부 재검토 필요
-- [ ] 복수 선택 (최대 2~3개)
-  - MVP에서는 제외. 집계/동점처리/우선순위 추가 구현 필요
-  - 사용자 피드백 바탕으로 추후 검토
-- [x] **자유 검색 지원** (MVP부터 지원)
-  - "우동", "냉면", "브런치" 등 고정 카테고리 외 키워드 직접 입력 가능
-  - 백엔드 이미 지원: `category`에 없는 값은 카카오 키워드 검색으로 그대로 넘어감
+1. 정직한 계산만 한다 
+2. 서버가 사용자의 선택을 임의로 바꾸지 않는다
+3. 누구도 지목하지 않는다
+4. 공정성 도구다 — 한 사람이 부담을 몰아서 지지 않게 한다
+5. 교집합 = 모두가 허용한 구역 
 
-## 카카오 로컬 API vs Google Places API 비교
-
-1주차에 두 API를 동일 좌표/반경으로 직접 테스트한 결과.
-
-### 테스트 조건
-
-- 테스트 지역: 홍대, 강남, 성수 (주요 상권) / 망원, 연남, 을지로 (골목 상권)
-- 반경: 1500m
-- 카테고리: 카페, 맛집, 술집
-
-### 결과 요약
-
-| 항목 | 카카오 로컬 API | Google Places API |
-|---|---|---|
-| 결과 수 | 동일 (최대 15개) | 동일 (최대 20개) |
-| 장소명 품질 | ✅ 한국어 깔끔 | ❌ 영어/중국어/일본어 섞임 |
-| 골목 상권 커버리지 | ✅ 해당 동네 로컬 가게 | ❌ 인근 핫플 끌어옴 |
-| 평점/사진/영업시간 | ❌ 없음 | ✅ 있음 |
-| 지역 정확도 | ✅ 높음 | ❌ 낮음 (망원 검색 → 홍대 맛집 반환) |
-| 자연어 검색 | ❌ 키워드 조합 필요 | ✅ "분위기 좋은 맛집" 가능 |
-| 상업적 이용 | ✅ 무료 쿼터(일 10만 건) + 초과분 종량제 과금 | ✅ 유료 플랜으로 명확 |
-
-### 최종 결정: 카카오 유지
-
-Mobv는 교집합 영역 안에서 지역 정확도가 핵심이라 카카오가 더 적합. Google Places는 평점/사진이 강점이지만, 망원에서 홍대 맛집을 반환하는 등 지역 정확도가 낮아 교집합 기반 서비스와 맞지 않음.
-
-Google Places는 추후 평점/사진 표시가 필요할 때 카카오와 병행 검토.
-
-### 확인 필요 — 카카오맵 출처 표기
-
-로컬 API 자체는 무료 쿼터 + 종량제 과금 구조라 상업적 이용에 별도 계약이 필요하지 않다. 다만 지도 SDK를 화면에 렌더링할 때 카카오 로고 노출이나 "Kakao Maps API를 활용하여..." 같은 출처 표기 의무가 있는지는 API 사용과 별개의 이슈이므로, 정식 출시 전 Kakao Developers 콘솔의 지도 SDK 이용약관을 확인해야 한다.
+새 기능 추가 전에 이 원칙과 충돌하는지 먼저 확인하세요.
