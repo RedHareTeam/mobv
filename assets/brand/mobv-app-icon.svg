@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Mobv app icon">
+  <defs>
+    <clipPath id="iconLens"><circle cx="412" cy="512" r="210"></circle></clipPath>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230" fill="#FFFFFF"></rect>
+  <circle cx="412" cy="512" r="210" fill="#5865F2"></circle>
+  <circle cx="612" cy="512" r="210" fill="#5AD6C0"></circle>
+  <g clip-path="url(#iconLens)">
+    <circle cx="612" cy="512" r="210" fill="#2E9BC8"></circle>
+  </g>
+</svg>
