@@ -1,19 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
-import '../app_config.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:mobv/app_theme.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
-import '../widgets/kakao_map_webview.dart';
-import '../widgets/gradient_button.dart';
+
+import '../app_config.dart';
+import '../services/appointment_service.dart';
 import '../services/auth_service.dart';
 import '../services/circle_service.dart';
-import '../services/appointment_service.dart';
+import '../widgets/gradient_button.dart';
+import '../widgets/kakao_map_webview.dart';
 import '../widgets/no_intersection_sheet.dart';
 import 'place_screen.dart';
-import 'package:mobv/app_theme.dart';
 
 class MapScreen extends StatefulWidget {
   final String roomId;
@@ -546,7 +548,8 @@ class _MapScreenState extends State<MapScreen> {
 
     try {
       final roomData = await _roomService.getAppointment(widget.roomId) ?? {};
-      final searchQuery = roomData['searchQuery'] ?? '맛집';
+      final category =
+          roomData['category'] ?? roomData['searchQuery'] ?? 'cafe';
       final mood = List<String>.from(roomData['mood'] ?? []);
 
       // 참여자별 원 데이터 구성 (1명일 때는 본인 원만 전달)
@@ -565,7 +568,7 @@ class _MapScreenState extends State<MapScreen> {
 
       final Map<String, dynamic> requestBody = {
         'users': usersList,
-        'search_query': searchQuery,
+        'category': category,
         'mood': mood,
       };
 
