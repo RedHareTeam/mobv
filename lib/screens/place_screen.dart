@@ -1,18 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../app_config.dart';
+import 'package:mobv/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../services/vote_service.dart';
-import '../services/circle_service.dart';
+
+import '../app_config.dart';
 import '../services/appointment_service.dart';
 import '../services/auth_service.dart';
+import '../services/circle_service.dart';
+import '../services/vote_service.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/glass_popup_menu.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/platform_html_view.dart';
-import 'package:mobv/app_theme.dart';
 import 'map_screen.dart';
 
 /// 장소 추천 & 투표 화면
@@ -431,8 +433,7 @@ class _PlaceScreenState extends State<PlaceScreen>
 
   @override
   Widget build(BuildContext context) {
-    final votedCount =
-        _votes.where((v) => v['selectedPlaceId'] != null).length;
+    final votedCount = _votes.where((v) => v['selectedPlaceId'] != null).length;
     final voteRatio = widget.members.isEmpty
         ? 0.0
         : votedCount / widget.members.length;
@@ -470,7 +471,7 @@ class _PlaceScreenState extends State<PlaceScreen>
                         '장소 투표',
                         style: TextStyle(
                           fontSize: 17,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700, // w800 → w700
                           color: AppTheme.textDark,
                           letterSpacing: -0.3,
                         ),
@@ -501,14 +502,17 @@ class _PlaceScreenState extends State<PlaceScreen>
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.how_to_vote_rounded,
-                          size: 16, color: AppTheme.primary),
+                      const Icon(
+                        Icons.how_to_vote_rounded,
+                        size: 16,
+                        color: AppTheme.primary,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '추천 장소 ${widget.places.length}곳 중 마음에 드는 곳을 골라주세요',
                         style: const TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600, // w700 → w600
                           color: AppTheme.textDark,
                         ),
                       ),
@@ -535,7 +539,7 @@ class _PlaceScreenState extends State<PlaceScreen>
                         '$votedCount/${widget.members.length}명 투표 완료',
                         style: const TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600, // w700 → w600
                           color: AppTheme.primary,
                         ),
                       ),
@@ -572,7 +576,7 @@ class _PlaceScreenState extends State<PlaceScreen>
                 dividerColor: Colors.transparent,
                 splashBorderRadius: BorderRadius.circular(20),
                 labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600, // w700 → w600
                   fontSize: 13,
                 ),
                 padding: const EdgeInsets.all(3),
@@ -611,10 +615,8 @@ class _PlaceScreenState extends State<PlaceScreen>
                         )
                         .where((v) => v.name.isNotEmpty)
                         .toList();
-                    final isLeading =
-                        maxVotes > 0 && voters.length == maxVotes;
-                    final url =
-                        (place['url'] ?? place['kakaoUrl']) as String?;
+                    final isLeading = maxVotes > 0 && voters.length == maxVotes;
+                    final url = (place['url'] ?? place['kakaoUrl']) as String?;
 
                     return _PlaceCard(
                       place: place,
@@ -626,9 +628,9 @@ class _PlaceScreenState extends State<PlaceScreen>
                       onSelect: () => _selectPlace(placeId),
                       onDetail: url != null && url.isNotEmpty
                           ? () => launchUrl(
-                                Uri.parse(url),
-                                mode: LaunchMode.inAppBrowserView,
-                              )
+                              Uri.parse(url),
+                              mode: LaunchMode.inAppBrowserView,
+                            )
                           : null,
                     );
                   },
@@ -655,9 +657,7 @@ class _PlaceScreenState extends State<PlaceScreen>
         padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomPad),
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(
-            top: BorderSide(color: AppTheme.border, width: 1),
-          ),
+          border: Border(top: BorderSide(color: AppTheme.border, width: 1)),
         ),
         child: SizedBox(
           height: 52,
@@ -860,7 +860,7 @@ class _PlaceCard extends StatelessWidget {
                         '#$rank',
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700, // w800 → w700
                           color: isSelected
                               ? AppTheme.primary
                               : AppTheme.textMuted,
@@ -886,7 +886,7 @@ class _PlaceCard extends StatelessWidget {
                               '1위 후보 (${voters.length}표)',
                               style: const TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700, // w800 → w700
                                 color: Color(0xFFB45309),
                               ),
                             ),
@@ -915,7 +915,7 @@ class _PlaceCard extends StatelessWidget {
                                 '지도',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600, // w700 → w600
                                   color: AppTheme.textDark,
                                 ),
                               ),
@@ -946,7 +946,7 @@ class _PlaceCard extends StatelessWidget {
                 Text(
                   place['name'] ?? '',
                   style: const TextStyle(
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700, // w900 → w700 (가장 두꺼웠던 곳)
                     fontSize: 17,
                     color: AppTheme.textDark,
                     letterSpacing: -0.3,
@@ -1063,7 +1063,7 @@ class _VoterChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               color: voter.color,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600, // w700 → w600
             ),
           ),
         ],
@@ -1098,7 +1098,7 @@ class _ConfirmedDialog extends StatelessWidget {
             name,
             style: const TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700, // bold(=700)와 동일, 표기만 통일
               color: AppTheme.textDark,
             ),
           ),

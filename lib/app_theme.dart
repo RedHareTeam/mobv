@@ -69,33 +69,38 @@ class AppTheme {
     ),
 
     fontFamily: 'Pretendard',
+    // 굵기 단계: bodyLarge/Medium/Small(w400) → titleSmall/Medium(w500)
+    // → headlineMedium/titleLarge(w600) → headlineLarge(w700)로 한 단씩만
+    // 뛰도록 조정. Pretendard 실제 폰트 파일이 들어오면서 기존 값(w600~w800)이
+    // 폴백 폰트일 때보다 훨씬 진하게 렌더링되어, 본문(w400) 바로 위 단계부터
+    // 전부 굵어 보이는 문제가 있었다.
     textTheme: const TextTheme(
       headlineLarge: TextStyle(
         fontSize: 26,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700, // w800 → w700
         letterSpacing: -0.5,
         color: textDark,
       ),
       headlineMedium: TextStyle(
         fontSize: 20,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600, // w700 → w600
         letterSpacing: -0.3,
         color: textDark,
       ),
       titleLarge: TextStyle(
         fontSize: 17,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600, // w700 → w600
         letterSpacing: -0.2,
         color: textDark,
       ),
       titleMedium: TextStyle(
         fontSize: 15,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500, // w600 → w500
         color: textDark,
       ),
       titleSmall: TextStyle(
         fontSize: 13,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500, // w600 → w500
         color: textDark,
       ),
       bodyLarge: TextStyle(

@@ -532,7 +532,7 @@ class _MeetingMapCard extends StatelessWidget {
                       '우리의 만남 지도',
                       style: TextStyle(
                         fontSize: 21,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w700, // w900 → w700
                         color: AppTheme.textDark,
                       ),
                     ),
@@ -585,7 +585,7 @@ class _SectionTitle extends StatelessWidget {
           title,
           style: const TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700, // w900 → w700
             color: AppTheme.textDark,
           ),
         ),
@@ -600,7 +600,7 @@ class _SectionTitle extends StatelessWidget {
             '$count',
             style: const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700, // w800 → w700
               color: AppTheme.primary,
             ),
           ),
@@ -690,7 +690,7 @@ class _AppointmentCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600, // w900 → w600
                           color: AppTheme.textDark,
                         ),
                       ),
@@ -773,7 +773,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700, // w900 → w700
                           color: AppTheme.primary,
                         ),
                       ),
@@ -785,7 +785,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600, // w900 → w600
                         color: AppTheme.textDark,
                       ),
                     ),
@@ -798,7 +798,7 @@ class _UpcomingAppointmentCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w500, // w700 → w500
                         color: AppTheme.textMuted,
                       ),
                     ),
@@ -979,7 +979,7 @@ class _ProfileAvatar extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: size * 0.38,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w700, // w900 → w700
                 ),
               ),
       ),
@@ -1006,7 +1006,7 @@ class _AppointmentStatusBadge extends StatelessWidget {
         label ?? _statusLabel(status),
         style: TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w700, // w900 → w700
           color: color,
         ),
       ),
@@ -1059,7 +1059,7 @@ class _EmptyBlock extends StatelessWidget {
             title,
             style: const TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600, // w800 → w600
               color: AppTheme.textDark,
             ),
           ),
@@ -1093,7 +1093,7 @@ class _ColorPickerDialog extends StatelessWidget {
               '나의 색상',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700, // w900 → w700
                 color: AppTheme.textDark,
               ),
             ),
@@ -1189,7 +1189,7 @@ class _JoinDialogState extends State<_JoinDialog> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700, // w900 → w700
                 color: AppTheme.textDark,
               ),
             ),
@@ -1211,7 +1211,7 @@ class _JoinDialogState extends State<_JoinDialog> {
               ],
               style: const TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700, // w800 → w700
                 letterSpacing: 10,
                 color: AppTheme.textDark,
               ),
@@ -1252,7 +1252,7 @@ class _JoinDialogState extends State<_JoinDialog> {
               ),
               child: const Text(
                 '참여하기',
-                style: TextStyle(fontWeight: FontWeight.w800),
+                style: TextStyle(fontWeight: FontWeight.w700), // w800 → w700
               ),
             ),
           ],
