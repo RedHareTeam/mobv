@@ -617,6 +617,17 @@ class _MapScreenState extends State<MapScreen> {
         return;
       }
 
+      if (response.statusCode == 502) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('장소 검색 서비스에 문제가 있어요. 잠시 후 다시 시도해주세요.'),
+            ),
+          );
+        }
+        return;
+      }
+
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final places = List<Map<String, dynamic>>.from(data['places'] ?? []);

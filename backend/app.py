@@ -1,3 +1,4 @@
+import math
 import os
 
 from flask import Flask, request, jsonify
@@ -5,7 +6,7 @@ from flask_cors import CORS
 from recommend.intersection import (
     calculate_intersection, get_intersection_shape, is_within_intersection, find_best_partial_intersection,
 )
-from recommend.place import search_places
+from recommend.place import PlaceSearchError, search_places
 from recommend.query_builder import build_search_queries, filter_by_category, search_with_multi_query
 from recommend.weather import get_weather, get_weather_forecast
 from recommend.midpoint import find_best_midpoint
@@ -63,45 +64,108 @@ def index():
     return jsonify({"status": "Mobv API 서버 실행 중"})
 
 
-def _search_and_filter(category, center_lat, center_lng, search_radius, shape, station_lat, station_lng):
-    """장소 검색 + 필터링 + 정렬 공통 로직"""
+def _search_and_filter(
+    category, center_lat, center_lng, search_radius, shape,
+    station_lat=None, station_lng=None, stations=None,
+):
+    """교집합 중심과 여러 역 주변에서 후보를 모아 검증하고 분산 정렬한다."""
     queries = build_search_queries(category)
 
-    results = search_with_multi_query(
-        search_places, queries,
-        center_lat, center_lng,
-        radius=search_radius,
-        size_per_query=15
-    )
+    search_centers = [(center_lat, center_lng)]
+    station_candidates = stations or []
+    if not station_candidates and station_lat is not None and station_lng is not None:
+        station_candidates = [{"center_lat": station_lat, "center_lng": station_lng}]
+    for station in station_candidates:
+        station_center = (station["center_lat"], station["center_lng"])
+        if station_center not in search_centers:
+            search_centers.append(station_center)
+
+    results = []
+    for search_lat, search_lng in search_centers:
+        results.extend(search_with_multi_query(
+            search_places, queries,
+            search_lat, search_lng,
+            radius=search_radius,
+            size_per_query=15
+        ))
 
     # 중복 제거
     seen = set()
     unique_places = []
     for p in results:
-        if p['name'] not in seen:
-            seen.add(p['name'])
+        place_key = p.get('kakaoId') or (
+            p['name'], p['lat'], p['lng']
+        )
+        if place_key not in seen:
+            seen.add(place_key)
             unique_places.append(p)
 
-    # 카테고리 필터링
+    # 사용자가 선택한 카테고리와 교집합 조건을 모두 만족하는 장소만 후보로 둔다.
     filtered = filter_by_category(unique_places, category)
-    top_places = filtered[:10]
+    if shape is None:
+        raise RuntimeError("교집합이 있는 요청에 교집합 geometry가 없습니다")
+    top_places = [
+        p for p in filtered
+        if is_within_intersection(p['lat'], p['lng'], shape)
+    ]
 
-    # 교집합 외부 장소 제거
-    if shape:
-        try:
-            in_intersection = [p for p in top_places if is_within_intersection(p['lat'], p['lng'], shape)]
-            if in_intersection:
-                top_places = in_intersection
-        except Exception as e:
-            print(f"교집합 필터 오류: {e}")
+    # 장소마다 가장 가까운 역을 연결하고, 역별 순위를 번갈아 배치해 한 역 주변만
+    # 결과를 차지하지 않게 한다. 같은 역 내에서는 중심에 가까운 순으로 정렬한다.
+    longitude_scale = 111000 * math.cos(math.radians(center_lat))
 
-    # 지하철역 근접도 기반 순위 재조정
-    if station_lat is not None:
-        def dist_to_station(p):
-            dlat = (p['lat'] - station_lat) * 111000
-            dlng = (p['lng'] - station_lng) * 111000 * 0.82
-            return dlat ** 2 + dlng ** 2
-        top_places.sort(key=dist_to_station)
+    def distance_squared(place, lat, lng):
+        dlat = (place["lat"] - lat) * 111000
+        dlng = (place["lng"] - lng) * longitude_scale
+        return dlat ** 2 + dlng ** 2
+
+    if station_candidates:
+        station_buckets = [[] for _ in station_candidates]
+        for place in top_places:
+            nearest_index = min(
+                range(len(station_candidates)),
+                key=lambda index: distance_squared(
+                    place,
+                    station_candidates[index]["center_lat"],
+                    station_candidates[index]["center_lng"],
+                ),
+            )
+            station = station_candidates[nearest_index]
+            station_buckets[nearest_index].append((
+                distance_squared(
+                    place, station["center_lat"], station["center_lng"],
+                ),
+                distance_squared(place, center_lat, center_lng),
+                place,
+            ))
+
+        for bucket in station_buckets:
+            bucket.sort(key=lambda item: (item[0], item[1]))
+
+        top_places = []
+        for rank in range(max((len(bucket) for bucket in station_buckets), default=0)):
+            for bucket in station_buckets:
+                if rank < len(bucket):
+                    top_places.append(bucket[rank][2])
+    else:
+        top_places.sort(key=lambda p: distance_squared(p, center_lat, center_lng))
+
+    top_places = top_places[:10]
+    if station_candidates:
+        for place in top_places:
+            nearest_station = min(
+                station_candidates,
+                key=lambda station: distance_squared(
+                    place,
+                    station["center_lat"],
+                    station["center_lng"],
+                ),
+            )
+            place["nearest_station"] = nearest_station["area_name"]
+            place["station_distance_m"] = round(math.sqrt(distance_squared(
+                place,
+                nearest_station["center_lat"],
+                nearest_station["center_lng"],
+            )))
 
     print(f"장소 수: {len(top_places)}, queries: {queries}, category: {category}")
     return top_places
@@ -207,8 +271,13 @@ def recommend():
         midpoint = None
 
     area_name = midpoint["area_name"] if midpoint else None
-    station_lat = midpoint["center_lat"] if midpoint else None
-    station_lng = midpoint["center_lng"] if midpoint else None
+    stations = midpoint.get("nearby_stations", []) if midpoint else []
+    if midpoint and not stations:
+        stations = [{
+            "area_name": midpoint["area_name"],
+            "center_lat": midpoint["center_lat"],
+            "center_lng": midpoint["center_lng"],
+        }]
 
     # 날씨 정보 (프론트 표시용)
     try:
@@ -224,23 +293,29 @@ def recommend():
     # 영어→한글 카테고리 변환
     category = CATEGORY_MAP_EN.get(category, category)
 
-    # 교집합 shape 계산 (장소 필터링용)
-    try:
-        intersection_shape = get_intersection_shape(users, radius_expansion)
-    except Exception as e:
-        print(f"shape 계산 오류: {e}")
-        intersection_shape = None
+    # 교집합 shape 계산 (장소 필터링용). 계산 실패 시 범위 검증 없이 추천하지 않는다.
+    intersection_shape = get_intersection_shape(users, radius_expansion)
 
     # 장소 검색
-    top_places = _search_and_filter(
-        category,
-        center_lat, center_lng,
-        search_radius, intersection_shape,
-        station_lat, station_lng
-    )
+    try:
+        top_places = _search_and_filter(
+            category,
+            center_lat, center_lng,
+            search_radius, intersection_shape,
+            stations=stations,
+        )
+    except PlaceSearchError as e:
+        app.logger.warning("장소 검색 제공자 오류: %s", e)
+        return jsonify({
+            "code": "PLACE_PROVIDER_UNAVAILABLE",
+            "error": "장소 검색 서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        }), 502
 
     if len(top_places) < 2:
-        return jsonify({"error": "추천 장소가 2곳 미만입니다. 원을 더 넓게 그려주세요."}), 422
+        return jsonify({
+            "code": "INSUFFICIENT_PLACES",
+            "error": "교집합 안에서 조건에 맞는 추천 장소가 2곳 미만입니다. 원을 넓히거나 다시 그려주세요.",
+        }), 422
 
     return jsonify({
         "hasIntersection": True,
@@ -248,6 +323,7 @@ def recommend():
         "center_lat": center_lat,
         "center_lng": center_lng,
         "search_radius": search_radius,
+        "nearby_stations": stations,
         "weather": weather,
         "places": top_places
     })

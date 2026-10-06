@@ -4,7 +4,7 @@ Mobv 백엔드 회귀 테스트
 목적:
 1. category 매핑 버그(중식/일식 dead mapping, study 누락)가 다시 생기지 않는지 고정
 2. /recommend 실패 케이스(입력 검증, 교집합 없음, 결과 부족)가 의도대로 동작하는지 확인
-3. 카테고리 필터링의 빈 결과 fallback이 깨지지 않는지 확인
+3. 조건에 맞지 않는 장소가 추천 결과에 포함되지 않는지 확인
 
 실행: python3 -m pytest test_recommend.py -v
 네트워크 호출(Kakao API, OpenWeather)은 전부 모킹되어 있어 API 키 없이 실행 가능합니다.
@@ -12,6 +12,7 @@ Mobv 백엔드 회귀 테스트
 import sys
 import os
 import requests
+import pytest
 from unittest.mock import patch, Mock
 from shapely.geometry import Point
 
@@ -23,9 +24,10 @@ from recommend.query_builder import (
     CATEGORY_RULES,
     build_search_queries,
     filter_by_category,
+    search_with_multi_query,
 )
 from recommend.intersection import calculate_intersection, find_best_partial_intersection, get_intersection_shape, utm_to_latlon
-from recommend.place import search_places
+from recommend.place import PlaceSearchError, search_places
 from recommend.weather import get_weather, get_weather_forecast
 from recommend.midpoint import find_best_midpoint
 
@@ -88,13 +90,24 @@ class TestCategoryMapping:
         assert not missing, f"필터 규칙 없는 카테고리: {missing}"
 
 
-# ── 2. 카테고리 필터링 fallback 테스트 ────────────────────
+# ── 2. 카테고리 필터링 테스트 ───────────────────────────
 
-class TestFilterFallback:
-    def test_empty_filter_result_falls_back_to_original(self):
+class TestCategoryFiltering:
+    def test_empty_filter_result_stays_empty(self):
         places = [fake_place("아무거나", 37.56, 126.97, category="여행 > 관광명소")]
-        result = filter_by_category(places, "카페")  # 규칙에 안 맞음 → 빈 결과 → 원본 반환
-        assert result == places
+        result = filter_by_category(places, "카페")
+        assert result == []
+
+    def test_multi_query_provider_failure_is_not_hidden_by_other_results(self):
+        def search_fn(query, lat, lng, radius, size):
+            if query == "first":
+                raise PlaceSearchError("provider unavailable")
+            return [fake_place("부분 결과", lat, lng)]
+
+        with pytest.raises(PlaceSearchError):
+            search_with_multi_query(
+                search_fn, ["first", "second"], 37.56, 126.97, 1000,
+            )
 
     def test_pizza_blacklist_removes_franchise(self):
         places = [
@@ -106,11 +119,11 @@ class TestFilterFallback:
         assert "도미노피자 강남점" not in names
         assert "동네피자집" in names
 
-    def test_blacklist_all_franchise_falls_back_to_unfiltered(self):
-        """블랙리스트 필터링 후 결과가 0개면 빈 화면 대신 원본을 반환해야 한다"""
+    def test_blacklist_all_franchise_stays_empty(self):
+        """블랙리스트 장소만 검색되면 이를 추천 결과에 포함하지 않는다."""
         places = [fake_place("피자헛 역삼점", 37.56, 126.97, category="음식점 > 피자")]
         result = filter_by_category(places, "피자")
-        assert result == places  # 전부 블랙리스트라도 빈 리스트로 만들지 않음
+        assert result == []
 
     def test_study_filter_treats_it_as_cafe_subtype(self):
         """'카공카페'(노트북/작업 목적)는 '스터디카페'(개인 열람실형 공간대여업)와
@@ -138,44 +151,56 @@ class TestFilterFallback:
         assert "메가커피 강남점" not in names
         assert "동네카페" in names
 
+    def test_study_blacklist_excludes_exact_unsuitable_place_name(self):
+        places = [
+            fake_place("적당", 37.56, 126.97, category="음식점 > 카페"),
+            fake_place(" 적당 ", 37.56, 126.97, category="음식점 > 카페"),
+            fake_place("적당커피", 37.56, 126.97, category="음식점 > 카페"),
+        ]
+
+        result = filter_by_category(places, "카공카페")
+
+        assert [place["name"] for place in result] == ["적당커피"]
+
+    def test_unsuitable_study_place_remains_available_in_regular_cafe_category(self):
+        places = [fake_place("적당", 37.56, 126.97, category="음식점 > 카페")]
+
+        assert filter_by_category(places, "카페") == places
+
 
 # ── 3. place.py 네트워크 장애 대응 테스트 ─────────────────
 
 class TestPlaceNetworkFailure:
     @patch("recommend.place.requests.get", side_effect=requests.exceptions.Timeout)
-    def test_kakao_timeout_returns_empty_list_not_exception(self, mock_get):
-        """카카오 API가 타임아웃 나도 예외가 위로 전파되지 않고 빈 리스트로 degrade해야 한다"""
-        result = search_places("카페", 37.5665, 126.978)
-        assert result == []
+    def test_kakao_timeout_is_not_misreported_as_no_results(self, mock_get):
+        with pytest.raises(PlaceSearchError):
+            search_places("카페", 37.5665, 126.978)
 
     @patch("recommend.place.requests.get", side_effect=requests.exceptions.ConnectionError)
-    def test_kakao_connection_error_returns_empty_list(self, mock_get):
-        result = search_places("카페", 37.5665, 126.978)
-        assert result == []
+    def test_kakao_connection_error_is_reported(self, mock_get):
+        with pytest.raises(PlaceSearchError):
+            search_places("카페", 37.5665, 126.978)
 
     @patch("recommend.place.requests.get")
-    def test_kakao_malformed_json_returns_empty_list(self, mock_get):
+    def test_kakao_malformed_json_is_reported(self, mock_get):
         fake_response = Mock()
         fake_response.status_code = 200
         fake_response.json.side_effect = ValueError("bad json")
         mock_get.return_value = fake_response
-        result = search_places("카페", 37.5665, 126.978)
-        assert result == []
+        with pytest.raises(PlaceSearchError):
+            search_places("카페", 37.5665, 126.978)
 
     @patch("recommend.place.requests.get")
-    def test_kakao_non_200_returns_empty_list(self, mock_get):
+    def test_kakao_non_200_is_reported(self, mock_get):
         fake_response = Mock()
         fake_response.status_code = 500
         mock_get.return_value = fake_response
-        result = search_places("카페", 37.5665, 126.978)
-        assert result == []
+        with pytest.raises(PlaceSearchError):
+            search_places("카페", 37.5665, 126.978)
 
     @patch("recommend.place.requests.get")
     def test_document_missing_optional_field_survives_with_default(self, mock_get):
-        """카카오 응답의 특정 문서에 부가 필드(road_address_name, distance)가
-        아예 없어도 KeyError로 전체가 죽지 않고, 기본값으로 채워져 살아남아야 한다.
-        (이게 안 잡히면, 단일 쿼리 카테고리는 search_with_multi_query에서 예외 처리가
-        없어서 /recommend 요청 전체가 실패한다.)"""
+        """부가 필드가 없는 문서도 정규화된 형식과 기본값으로 살아남아야 한다."""
         fake_response = Mock()
         fake_response.status_code = 200
         fake_response.json.return_value = {
@@ -198,10 +223,14 @@ class TestPlaceNetworkFailure:
 
         result = search_places("카페", 37.5665, 126.978)
 
-        # 필드 누락된 두 번째 문서도 실제로는 .get() 기본값으로 채워져서 살아남는다 —
-        # 여기서 검증할 건 "예외가 안 터진다"는 것과 "정상 문서는 누락 없이 온다"는 것
+        # optional 필드가 없는 문서도 정규화된 응답 형식을 유지한다.
         assert len(result) == 2
         assert result[0]["name"] == "정상카페"
+        assert set(result[1]) == {
+            "name", "address", "category", "lat", "lng", "url", "distance", "kakaoId",
+        }
+        assert result[1]["distance"] == 0
+        assert result[1]["address"] == "서울시"
 
     @patch("recommend.place.requests.get")
     def test_missing_coordinates_are_skipped_not_defaulted_to_zero(self, mock_get):
@@ -231,6 +260,21 @@ class TestPlaceNetworkFailure:
         assert result[0]["name"] == "정상카페"
 
     @patch("recommend.place.requests.get")
+    def test_all_invalid_place_documents_are_reported_as_bad_provider_response(self, mock_get):
+        fake_response = Mock()
+        fake_response.status_code = 200
+        fake_response.json.return_value = {
+            "documents": [{
+                "place_name": "좌표가 잘못된 장소", "id": "1",
+                "y": "999", "x": "127.0",
+            }]
+        }
+        mock_get.return_value = fake_response
+
+        with pytest.raises(PlaceSearchError):
+            search_places("카페", 37.5665, 126.978)
+
+    @patch("recommend.place.requests.get")
     def test_radius_is_clamped_to_kakao_max(self, mock_get):
         """카카오 로컬 API의 radius 상한(20000)을 넘는 값이 들어와도, 그대로
         보내지 말고 20000으로 잘라서 보내야 한다 (안 그러면 카카오가 400을 반환하고
@@ -244,6 +288,21 @@ class TestPlaceNetworkFailure:
 
         sent_params = mock_get.call_args.kwargs["params"]
         assert sent_params["radius"] == 20000
+
+    @patch("recommend.place.requests.get")
+    def test_sort_parameter_defaults_to_accuracy_and_can_use_distance(self, mock_get):
+        fake_response = Mock()
+        fake_response.status_code = 200
+        fake_response.json.return_value = {"documents": []}
+        mock_get.return_value = fake_response
+
+        search_places("카페", 37.5665, 126.978)
+        search_places("지하철역", 37.5665, 126.978, sort="distance")
+
+        sent_sorts = [
+            call.kwargs["params"]["sort"] for call in mock_get.call_args_list
+        ]
+        assert sent_sorts == ["accuracy", "distance"]
 
 
 # ── 3-2. weather.py 네트워크 장애 대응 테스트 ────────────────
@@ -463,6 +522,169 @@ class TestMidpointStationSelection:
 
         assert result["area_name"] == "중심근처역"
 
+    @patch("recommend.midpoint.search_places", return_value=[
+        {"name": "먼역", "lat": 37.58, "lng": 126.978, "category": "지하철역"},
+        {"name": "가까운역", "lat": 37.5666, "lng": 126.978, "category": "지하철역"},
+    ])
+    def test_station_search_requests_distance_sorted_candidates(self, mock_search):
+        users = [
+            {"lat": 37.5665, "lng": 126.9780, "radius": 1500},
+            {"lat": 37.5670, "lng": 126.9785, "radius": 1500},
+        ]
+
+        result = find_best_midpoint(users)
+
+        assert result["area_name"] == "가까운역"
+        mock_search.assert_called_once()
+        assert mock_search.call_args.kwargs["sort"] == "distance"
+        assert mock_search.call_args.kwargs["size"] == 15
+        assert len(result["nearby_stations"]) == 2
+
+    @patch("recommend.midpoint.search_places", return_value=[
+        {"name": "역A", "lat": 37.5666, "lng": 126.9780, "category": "지하철역"},
+        {"name": "역A", "lat": 37.5667, "lng": 126.9781, "category": "지하철역"},
+        {"name": "역B", "lat": 37.5668, "lng": 126.9782, "category": "지하철역"},
+        {"name": "역C", "lat": 37.5669, "lng": 126.9783, "category": "지하철역"},
+        {"name": "역D", "lat": 37.5670, "lng": 126.9784, "category": "지하철역"},
+    ])
+    def test_selects_up_to_three_unique_nearby_stations(self, mock_search):
+        users = [
+            {"lat": 37.5665, "lng": 126.9780, "radius": 1500},
+            {"lat": 37.5670, "lng": 126.9785, "radius": 1500},
+        ]
+
+        result = find_best_midpoint(users)
+
+        station_names = [station["area_name"] for station in result["nearby_stations"]]
+        assert result["area_name"] == station_names[0]
+        assert len(station_names) == 3
+        assert set(station_names) == {"역A", "역B", "역C"}
+
+    @patch("app.search_places")
+    def test_station_search_supplements_center_and_still_filters_intersection(
+        self, mock_search
+    ):
+        users = [
+            {"lat": 37.5665, "lng": 126.9780, "radius": 3000},
+            {"lat": 37.5675, "lng": 126.9790, "radius": 3000},
+        ]
+        intersection = calculate_intersection(users)
+        shape = get_intersection_shape(users)
+        station_lat, station_lng = users[0]["lat"], users[0]["lng"]
+        in_intersection = [
+            fake_place("역주변카페1", 37.5666, 126.9781, category="음식점 > 카페"),
+            fake_place("역주변카페2", 37.5667, 126.9782, category="음식점 > 카페"),
+        ]
+        outside_intersection = fake_place(
+            "역밖카페", 37.60, 127.05, category="음식점 > 카페",
+        )
+        mock_search.side_effect = [[], in_intersection + [outside_intersection]]
+
+        result = app_module._search_and_filter(
+            "카페",
+            intersection["center_lat"],
+            intersection["center_lng"],
+            intersection["search_radius"],
+            shape,
+            stations=[{
+                "area_name": "기준역",
+                "center_lat": station_lat,
+                "center_lng": station_lng,
+            }],
+        )
+
+        assert mock_search.call_count == 2
+        assert mock_search.call_args_list[0].args[1:3] == (
+            intersection["center_lat"], intersection["center_lng"],
+        )
+        assert mock_search.call_args_list[1].args[1:3] == (station_lat, station_lng)
+        assert {place["name"] for place in result} == {
+            "역주변카페1", "역주변카페2",
+        }
+
+    @patch("app.search_places")
+    def test_places_rank_by_station_distance_then_intersection_center(
+        self, mock_search
+    ):
+        users = [
+            {"lat": 37.5665, "lng": 126.9780, "radius": 3000},
+            {"lat": 37.5675, "lng": 126.9790, "radius": 3000},
+        ]
+        intersection = calculate_intersection(users)
+        shape = get_intersection_shape(users)
+        station_lat, station_lng = users[0]["lat"], users[0]["lng"]
+        station_close = fake_place(
+            "역에가깝지만중심에서먼곳", station_lat, station_lng,
+            category="음식점 > 카페",
+        )
+        center_close = fake_place(
+            "중심에가깝지만역에서먼곳",
+            intersection["center_lat"], intersection["center_lng"],
+            category="음식점 > 카페",
+        )
+        mock_search.side_effect = [[station_close, center_close], []]
+
+        result = app_module._search_and_filter(
+            "카페",
+            intersection["center_lat"],
+            intersection["center_lng"],
+            intersection["search_radius"],
+            shape,
+            stations=[{
+                "area_name": "기준역",
+                "center_lat": station_lat,
+                "center_lng": station_lng,
+            }],
+        )
+
+        assert [place["name"] for place in result] == [
+            "역에가깝지만중심에서먼곳",
+            "중심에가깝지만역에서먼곳",
+        ]
+
+    @patch("app.search_places")
+    def test_station_recommendations_are_spread_across_stations(self, mock_search):
+        users = [
+            {"lat": 37.5665, "lng": 126.9780, "radius": 3000},
+            {"lat": 37.5675, "lng": 126.9790, "radius": 3000},
+        ]
+        intersection = calculate_intersection(users)
+        shape = get_intersection_shape(users)
+        stations = [
+            {"area_name": "역A", "center_lat": 37.5660, "center_lng": 126.9770},
+            {"area_name": "역B", "center_lat": 37.5680, "center_lng": 126.9800},
+        ]
+        station_a_places = [
+            fake_place(
+                f"A{i}", 37.5660 + i * 0.0001, 126.9770,
+                category="음식점 > 카페",
+            )
+            for i in range(4)
+        ]
+        station_b_places = [
+            fake_place(
+                f"B{i}", 37.5680 + i * 0.0001, 126.9800,
+                category="음식점 > 카페",
+            )
+            for i in range(4)
+        ]
+        mock_search.side_effect = [[], station_a_places, station_b_places]
+
+        result = app_module._search_and_filter(
+            "카페",
+            intersection["center_lat"],
+            intersection["center_lng"],
+            intersection["search_radius"],
+            shape,
+            stations=stations,
+        )
+
+        names = [place["name"] for place in result]
+        assert len(names) == 8
+        assert names[:4] == ["A0", "B0", "A1", "B1"]
+        assert all(place["nearest_station"] in {"역A", "역B"} for place in result)
+        assert all(isinstance(place["station_distance_m"], int) for place in result)
+
     @patch("recommend.midpoint.search_places", return_value=[])
     def test_no_stations_found_returns_none(self, mock_search):
         users = [
@@ -616,6 +838,80 @@ class TestRecommendEndpoint:
             "users": SEOUL_USERS_OVERLAP, "category": "cafe",
         })
         assert res.status_code == 422
+        assert res.get_json()["code"] == "INSUFFICIENT_PLACES"
+
+    @patch("app.find_best_midpoint", return_value=None)
+    @patch("app.get_weather", return_value={"condition": "clear", "temp": 20, "description": "맑음"})
+    @patch("app.search_places", side_effect=PlaceSearchError("Kakao Local API request failed"))
+    def test_provider_failure_returns_502_not_insufficient_places(
+        self, mock_search, mock_weather, mock_midpoint
+    ):
+        client = make_client()
+        res = client.post("/recommend", json={
+            "users": SEOUL_USERS_OVERLAP, "category": "cafe",
+        })
+
+        assert res.status_code == 502
+        assert res.get_json()["code"] == "PLACE_PROVIDER_UNAVAILABLE"
+
+    @patch("app.find_best_midpoint", return_value=None)
+    @patch("app.get_weather", return_value={"condition": "clear", "temp": 20, "description": "맑음"})
+    @patch("app.search_places")
+    def test_places_outside_intersection_are_not_recommended(
+        self, mock_search, mock_weather, mock_midpoint
+    ):
+        mock_search.return_value = [
+            fake_place("교집합밖카페", 37.60, 127.05, category="음식점 > 카페"),
+            fake_place("교집합밖카페2", 37.61, 127.06, category="음식점 > 카페"),
+        ]
+        client = make_client()
+        res = client.post("/recommend", json={
+            "users": SEOUL_USERS_OVERLAP, "category": "cafe",
+        })
+
+        assert res.status_code == 422
+        assert res.get_json()["code"] == "INSUFFICIENT_PLACES"
+
+    @patch("app.find_best_midpoint", return_value=None)
+    @patch("app.get_weather", return_value={"condition": "clear", "temp": 20, "description": "맑음"})
+    @patch("app.search_places")
+    def test_places_outside_category_are_not_recommended(
+        self, mock_search, mock_weather, mock_midpoint
+    ):
+        mock_search.return_value = [
+            fake_place("관광지1", 37.5665, 126.978, category="여행 > 관광명소"),
+            fake_place("관광지2", 37.5666, 126.9781, category="여행 > 관광명소"),
+        ]
+        client = make_client()
+        res = client.post("/recommend", json={
+            "users": SEOUL_USERS_OVERLAP, "category": "cafe",
+        })
+
+        assert res.status_code == 422
+        assert res.get_json()["code"] == "INSUFFICIENT_PLACES"
+
+    @patch("app.find_best_midpoint", return_value=None)
+    @patch("app.get_weather", return_value={"condition": "clear", "temp": 20, "description": "맑음"})
+    @patch("app.search_places")
+    def test_same_name_locations_are_not_collapsed_before_filtering(
+        self, mock_search, mock_weather, mock_midpoint
+    ):
+        outside = fake_place("같은이름카페", 37.60, 127.05, category="음식점 > 카페")
+        inside = fake_place("같은이름카페", 37.5665, 126.978, category="음식점 > 카페")
+        outside["kakaoId"] = "outside-id"
+        inside["kakaoId"] = "inside-id"
+        other_inside = fake_place("근처카페", 37.5666, 126.9781, category="음식점 > 카페")
+        mock_search.return_value = [outside, inside, other_inside]
+
+        client = make_client()
+        res = client.post("/recommend", json={
+            "users": SEOUL_USERS_OVERLAP, "category": "cafe",
+        })
+
+        assert res.status_code == 200
+        recommended_ids = [place["kakaoId"] for place in res.get_json()["places"]]
+        assert "inside-id" in recommended_ids
+        assert "outside-id" not in recommended_ids
 
     @patch("app.find_best_midpoint", return_value={
         "area_name": "종각역", "center_lat": 37.567, "center_lng": 126.978,

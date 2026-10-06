@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from recommend.place import PlaceSearchError
+
 # 사용자 선택 카테고리 → 카카오 검색어
 # 음식 이름 기반으로 단순화 (카카오 API 테스트 검증)
 CATEGORY_QUERY = {
@@ -89,6 +91,11 @@ KOREAN_BLACKLIST = {
     "한솥", "본죽", "김밥천국", "롤링파스타",
 }
 
+STUDY_PLACE_BLACKLIST = {
+    # 카공 장소로 부적합하다고 확인된 개별 장소명 (정확히 일치할 때만 제외)
+    "적당",
+}
+
 
 def build_search_queries(category):
     """
@@ -108,28 +115,29 @@ def build_search_queries(category):
 
 def filter_by_category(places, category):
     """
-    카테고리 불일치 장소 필터링
-    필터링 후 결과가 없으면 원본 반환 (빈 결과 방지)
+    카테고리 불일치 장소와 블랙리스트 장소를 제외한다.
     """
     rule = CATEGORY_RULES.get(category)
     if not rule:
         return places
 
-    filtered = [p for p in places if rule(p.get("category", ""))]
-    result = filtered if filtered else places
+    result = [p for p in places if rule(p.get("category", ""))]
 
     # 피자/카페 카테고리 프랜차이즈 제거
     if category == "피자":
-        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in PIZZA_BLACKLIST)]
-        result = filtered2 if filtered2 else result
+        result = [p for p in result if not any(b in p.get("name", "") for b in PIZZA_BLACKLIST)]
 
     if category in {"카페", "디저트", "카공카페"}:
-        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in CAFE_BLACKLIST)]
-        result = filtered2 if filtered2 else result
+        result = [p for p in result if not any(b in p.get("name", "") for b in CAFE_BLACKLIST)]
+
+    if category == "카공카페":
+        result = [
+            p for p in result
+            if p.get("name", "").strip() not in STUDY_PLACE_BLACKLIST
+        ]
 
     if category == "한식":
-        filtered2 = [p for p in result if not any(b in p.get("name", "") for b in KOREAN_BLACKLIST)]
-        result = filtered2 if filtered2 else result
+        result = [p for p in result if not any(b in p.get("name", "") for b in KOREAN_BLACKLIST)]
 
     return result
 
@@ -149,13 +157,18 @@ def search_with_multi_query(search_fn, queries, lat, lng, radius, size_per_query
 
     with ThreadPoolExecutor(max_workers=len(queries)) as executor:
         futures = {executor.submit(fetch, q): q for q in queries}
+        failures = []
         for future in as_completed(futures):
             try:
                 for place in future.result():
                     pid = place.get("kakaoId") or place["name"]
                     if pid not in results_map:
                         results_map[pid] = place
-            except Exception as e:
-                print(f"멀티쿼리 검색 오류: {e}")
+            except PlaceSearchError as e:
+                failures.append((futures[future], e))
+                print(f"멀티쿼리 장소 검색 실패: query={futures[future]}, error={e}")
+
+    if failures:
+        raise failures[0][1]
 
     return list(results_map.values())

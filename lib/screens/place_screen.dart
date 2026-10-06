@@ -595,10 +595,27 @@ class _PlaceScreenState extends State<PlaceScreen>
                 // 목록 탭
                 ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                  itemCount: widget.places.length,
+                  itemCount:
+                      widget.places.length +
+                      (widget.places.any(
+                            (place) =>
+                                place['nearest_station'] is String &&
+                                place['station_distance_m'] is num,
+                          )
+                          ? 1
+                          : 0),
                   itemBuilder: (context, index) {
-                    final place = widget.places[index];
-                    final placeId = place['kakaoId'] ?? '$index';
+                    final hasStationInfo = widget.places.any(
+                      (place) =>
+                          place['nearest_station'] is String &&
+                          place['station_distance_m'] is num,
+                    );
+                    if (hasStationInfo && index == 0) {
+                      return const _RecommendationNote();
+                    }
+                    final placeIndex = index - (hasStationInfo ? 1 : 0);
+                    final place = widget.places[placeIndex];
+                    final placeId = place['kakaoId'] ?? '$placeIndex';
                     final isSelected = _mySelectedId == placeId;
                     final voters = _votes
                         .where((v) => v['selectedPlaceId'] == placeId)
@@ -621,7 +638,7 @@ class _PlaceScreenState extends State<PlaceScreen>
                     return _PlaceCard(
                       place: place,
                       placeId: placeId,
-                      rank: index + 1,
+                      rank: placeIndex + 1,
                       isSelected: isSelected,
                       isLeading: isLeading,
                       voters: voters,
@@ -813,6 +830,13 @@ class _PlaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final category = (place['category'] as String?) ?? '';
+    final nearestStation = place['nearest_station']?.toString() ?? '';
+    final stationDistance = (place['station_distance_m'] as num?)?.toDouble();
+    final stationDistanceLabel = stationDistance == null
+        ? null
+        : stationDistance >= 1000
+        ? '약 ${(stationDistance / 1000).toStringAsFixed(1)}km'
+        : '약 ${stationDistance.round()}m';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -974,6 +998,30 @@ class _PlaceCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (nearestStation.isNotEmpty &&
+                    stationDistanceLabel != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.train_rounded,
+                        size: 14,
+                        color: AppTheme.primary,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          '$nearestStation역까지 직선거리 $stationDistanceLabel',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 if (category.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -1028,6 +1076,39 @@ class _PlaceCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RecommendationNote extends StatelessWidget {
+  const _RecommendationNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.primary),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '모두의 교집합 안에서 찾았어요. 역까지의 거리는 직선거리이며, 대중교통 이동시간과는 다를 수 있어요.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: AppTheme.textDark,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
