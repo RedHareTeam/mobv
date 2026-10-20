@@ -12,9 +12,9 @@
   --mobv-mint: #5ad6c0;
   --mobv-teal-ink: #176b61;
   --mobv-teal-tint: #eef8f5;
-  --mobv-sidebar: #0d2818;
+  --mobv-sidebar: #242d2a;
   --mobv-sidebar-text: #c9d5ce;
-  --mobv-sidebar-selected: #2b6047;
+  --mobv-sidebar-selected: #37463f;
   --mobv-urgent: #93452b;
   --mobv-urgent-bg: #f9eee9;
   --mobv-radius: 5px;
@@ -47,7 +47,7 @@ input, textarea { caret-color: var(--mobv-action); }
 [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { color: #f7faf7; }
 [data-testid="stSidebar"] [data-testid="stRadio"] { margin-top: 28px; }
 [data-testid="stSidebar"] [role="radiogroup"] { gap: 4px; }
-[data-testid="stSidebar"] hr { border-color: #46745a; }
+[data-testid="stSidebar"] hr { border-color: #43534a; }
 [data-testid="stSidebar"] [data-testid="stRadioOption"] {
   width: 100%; min-height: 44px; padding: 10px 12px; margin: 0;
   color: var(--mobv-sidebar-text); border-radius: 4px;
@@ -55,7 +55,7 @@ input, textarea { caret-color: var(--mobv-action); }
 }
 [data-testid="stSidebar"] [data-testid="stRadioOption"] p { color: inherit; }
 [data-testid="stSidebar"] [data-testid="stRadioOption"] > div > div:first-child { display: none; }
-[data-testid="stSidebar"] [data-testid="stRadioOption"]:hover { background: #25563f; color: #fff; }
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:hover { background: #304039; color: #fff; }
 [data-testid="stSidebar"] [data-testid="stRadioOption"]:has(input:checked) {
   color: #fff; background: var(--mobv-sidebar-selected);
   box-shadow: inset 1px 0 var(--mobv-mint); font-weight: 600;
@@ -64,7 +64,7 @@ input, textarea { caret-color: var(--mobv-action); }
   box-shadow: inset 0 0 0 1px #77d5bb;
 }
 [data-testid="stSidebar"] [data-testid="stSelectbox"] [data-baseweb="select"] > div {
-  background: #25563f; border-color: #91b6a2; color: #fff;
+  background: #304039; border-color: #84978b; color: #fff;
 }
 [data-testid="stSidebar"] [data-baseweb="select"] * { color: #fff; }
 [data-testid="stSidebar"] [data-baseweb="select"]:focus-within {
