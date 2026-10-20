@@ -1,0 +1,16 @@
+{
+  "run_id": "RUN-20261019-204216-290494",
+  "started_at": "2026-10-19T20:42:16.290494+09:00",
+  "finished_at": "2026-10-19T20:44:27.675174+09:00",
+  "input_file": "development_voc.csv",
+  "input_count": 30,
+  "success_count": 30,
+  "failure_count": 0,
+  "review_count": 17,
+  "rule_override_count": 1,
+  "prompt_version": "v1.0",
+  "policy_version": "v1.0",
+  "model_name": "gpt-6-luna",
+  "elapsed_seconds": 131.387,
+  "errors": []
+}

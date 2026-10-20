@@ -1,10 +1,19 @@
-__pycache__/
-*.pyc
+# Local credentials and environments
 .env
+.env.*
+!.env.example
 .streamlit/secrets.toml
 .venv/
+
+# Python and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.log
+
+# Generated VOC work. Keep only the synthetic demo input and its run log.
 output/*
 !output/openai/
 output/openai/*
 !output/openai/classified_voc.csv
-output/openai/reviewed_voc.accidental-approval-backup.csv
+!output/openai/run_log.json
