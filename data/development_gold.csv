@@ -1,0 +1,31 @@
+voc_id,gold_category,gold_product_area,gold_priority,gold_owner,gold_sla,gold_review_flags,gold_needs_review,gold_reason
+DEV-001,BUG,AUTH,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,로그인 진입이 앱 종료로 막힘
+DEV-002,BUG,APPOINTMENT,P2,DEVELOPMENT,3영업일 이내,,false,유효한 초대 코드의 참여 기능 실패
+DEV-003,INFORMATION,APPOINTMENT,P3,OPERATIONS,5영업일 이내,,false,초대 코드 유효기간을 묻는 이용 안내
+DEV-004,BUG,DATE_COORDINATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,선택 결과와 다른 날짜로 잘못 확정됨
+DEV-005,USABILITY,DATE_COORDINATION,P3,DESIGN_UX,5영업일 이내,,false,선택 상태의 표시가 불명확함
+DEV-006,BUG,MAP_LOCATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,저장된 위치 원이 재진입 후 유실됨
+DEV-007,USABILITY,MAP_LOCATION,P3,DESIGN_UX,5영업일 이내,,false,원 표시의 의미를 알기 어려움
+DEV-008,POLICY,MAP_LOCATION,P0,POLICY_SECURITY,즉시 확인,HIGH_PRIORITY|PRIVACY_SECURITY,true,다른 약속 참여자의 위치가 노출됨
+DEV-009,BUG,RECOMMENDATION,P2,DEVELOPMENT,3영업일 이내,,false,교집합이 있는데 추천 결과가 비어 있음
+DEV-010,REQUEST,RECOMMENDATION,P3,PRODUCT,5영업일 이내,,false,추천 장소에 새 필터를 추가해 달라는 요청
+DEV-011,BUG,VOTING,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,한 번의 투표가 중복 집계됨
+DEV-012,INFORMATION,VOTING,P3,OPERATIONS,5영업일 이내,,false,동점 처리 방식을 묻는 사용법 문의
+DEV-013,BUG,HISTORY,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,저장한 방문 메모가 유실됨
+DEV-014,REQUEST,COMMON,P3,PRODUCT,5영업일 이내,,false,다크 모드 신규 기능 요청
+DEV-015,ACCOUNT,AUTH,P3,OPERATIONS,5영업일 이내,,false,닉네임 변경 절차 문의
+DEV-016,POLICY,AUTH,P3,POLICY_SECURITY,5영업일 이내,PRIVACY_SECURITY,true,계정 삭제 후 기록과 위치정보 보관 기준 문의
+DEV-017,ETC,COMMON,P3,NEEDS_TRIAGE,5영업일 이내,AMBIGUOUS,true,어느 기능이 실패했는지 정보가 없음
+DEV-018,ETC,MAP_LOCATION,P3,NEEDS_TRIAGE,5영업일 이내,AMBIGUOUS,true,지도 관련 문제의 내용이 없음
+DEV-019,BUG,APPOINTMENT,P2,DEVELOPMENT,3영업일 이내,,false,발급 직후 초대 코드로 참여할 수 없음
+DEV-020,ACCOUNT,AUTH,P2,OPERATIONS,3영업일 이내,PERSONAL_DATA,true,인증 메일 미도착이며 가상 이메일 형식 포함
+DEV-021,INFORMATION,APPOINTMENT,P3,OPERATIONS,5영업일 이내,PERSONAL_DATA,true,문자 초대 가능 여부 문의에 가상 전화번호 포함
+DEV-022,INFORMATION,APPOINTMENT,P3,OPERATIONS,5영업일 이내,PROMPT_INJECTION,true,초대 코드 확인법 문의에 분류 지시 변경 문장 포함
+DEV-023,INFORMATION,DATE_COORDINATION,P3,OPERATIONS,5영업일 이내,,false,방장 날짜 확정 권한에 대한 사용법 문의
+DEV-024,POLICY,DATE_COORDINATION,P1,POLICY_SECURITY,당일,HIGH_PRIORITY|PRIVACY_SECURITY,true,방장이 아닌 사용자의 날짜 확정 권한 오류
+DEV-025,BUG,MAP_LOCATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,저장한 위치 원이 재진입 후 유실됨
+DEV-026,BUG,MAP_LOCATION,P2,DEVELOPMENT,3영업일 이내,,false,위치 오차가 있지만 수동 이동으로 우회 가능
+DEV-027,USABILITY,COMMON,P3,DESIGN_UX,5영업일 이내,,false,작은 글자와 버튼으로 조작이 어려움
+DEV-028,BUG,AUTH,P1,DEVELOPMENT,당일,HIGH_PRIORITY|MULTI_ISSUE,true,로그인 멈춤과 지도 원 저장 실패가 함께 발생
+DEV-029,BUG,VOTING,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,새로고침 후 같은 투표가 중복 집계됨
+DEV-030,BUG,HISTORY,P1,DEVELOPMENT,당일,HIGH_PRIORITY|MULTI_ISSUE,true,추천 상세 실패와 방문 메모 저장 실패 중 데이터 손실 가능성을 우선함

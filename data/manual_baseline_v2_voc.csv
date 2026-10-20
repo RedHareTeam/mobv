@@ -1,0 +1,31 @@
+voc_id,received_at,channel,platform,app_version,screen,user_text
+BASE2-001,2026-10-20,in_app,ios,unknown,appointment,초대장을 받아 참여했는데 참가자 목록에는 제 이름이 나타나지 않아요.
+BASE2-002,2026-10-20,email,web,unknown,login,프로필에 표시되는 이름은 어디서 바꿀 수 있나요?
+BASE2-003,2026-10-20,beta_form,android,unknown,date_coordination,후보 날짜를 저장했는데 다른 사람이 들어오면 모든 후보가 사라집니다.
+BASE2-004,2026-10-20,usability_test,ios,unknown,voting,제가 투표한 장소가 무엇인지 화면에서 구분하기 어려워요.
+BASE2-005,2026-10-20,store_review,web,unknown,common,앱에서 글자 크기를 조절할 수 있으면 좋겠어요.
+BASE2-006,2026-10-20,in_app,android,unknown,map,지도를 길게 눌러도 위치 원이 그려지지 않습니다.
+BASE2-007,2026-10-20,email,ios,unknown,map,모임이 끝난 뒤 참여자에게 제 위치가 언제까지 보이나요?
+BASE2-008,2026-10-20,beta_form,web,unknown,recommendation,같은 지역을 선택했는데 장소 추천 결과가 하나도 나오지 않아요.
+BASE2-009,2026-10-20,in_app,android,unknown,voting,투표를 취소했는데 다시 들어가면 여전히 한 표가 남아 있습니다.
+BASE2-010,2026-10-20,email,web,unknown,appointment,제가 만든 약속 방을 삭제하려면 어떤 메뉴를 눌러야 하나요?
+BASE2-011,2026-10-20,beta_form,ios,unknown,history,다른 모임 참가자가 쓴 방문 메모를 제 기록에서 읽을 수 있어요.
+BASE2-012,2026-10-20,usability_test,android,unknown,date_coordination,날짜를 선택한 뒤 저장이 되었는지 알려주는 표시가 없어요.
+BASE2-013,2026-10-20,in_app,web,unknown,login,계정 삭제를 요청하려면 어디에 연락해야 하나요?
+BASE2-014,2026-10-20,store_review,unknown,unknown,unknown,뭔가 이상합니다.
+BASE2-015,2026-10-20,email,ios,unknown,recommendation,추천 장소에서 휠체어로 들어갈 수 있는 곳만 고르는 기능이 필요해요.
+BASE2-016,2026-10-20,beta_form,android,unknown,date_coordination,제가 고르지 않은 날짜로 약속이 확정됐습니다.
+BASE2-017,2026-10-20,in_app,web,unknown,voting,장소 두 곳의 표가 같으면 다음 절차가 어떻게 되나요?
+BASE2-018,2026-10-20,email,android,unknown,map,현재 위치가 옆 건물로 표시되지만 지도를 직접 옮기면 이용할 수 있어요.
+BASE2-019,2026-10-20,beta_form,ios,unknown,history,방문 기록에 적은 메모를 수정했는데 저장 후 원래 내용으로 돌아갑니다.
+BASE2-020,2026-10-20,usability_test,web,unknown,appointment,참가자 초대 버튼이 어디에 있는지 한참 찾아야 했어요.
+BASE2-021,2026-10-20,in_app,android,unknown,login,이메일 인증을 완료했는데 로그인 화면에서 인증이 필요하다고 반복해서 나옵니다.
+BASE2-022,2026-10-20,email,ios,unknown,appointment,약속을 만들 때 참가 인원 제한을 바꿀 수 있나요?
+BASE2-023,2026-10-20,beta_form,web,unknown,map,제 약속과 관계없는 사람의 위치 표시가 지도에 나타납니다.
+BASE2-024,2026-10-20,in_app,android,unknown,recommendation,추천 장소를 누르면 상세 화면이 열렸다가 곧바로 닫힙니다.
+BASE2-025,2026-10-20,email,web,unknown,history,지난 약속의 방문 기록을 내려받는 기능을 추가해 주세요.
+BASE2-026,2026-10-20,beta_form,ios,unknown,voting,방장이 아닌데도 제가 최종 장소를 확정할 수 있어요.
+BASE2-027,2026-10-20,usability_test,android,unknown,history,히트맵의 작은 칸을 눌러도 어떤 날짜인지 알기 어려워요.
+BASE2-028,2026-10-20,in_app,web,unknown,common,화면 전환이 느리지만 잠시 기다리면 정상적으로 열립니다.
+BASE2-029,2026-10-20,email,ios,unknown,login,가입에 사용한 이메일을 바꾸는 방법이 있나요?
+BASE2-030,2026-10-20,beta_form,android,unknown,appointment,한 사람에게 초대 알림을 두 번 보내면 참가자도 두 명으로 집계됩니다.

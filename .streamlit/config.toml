@@ -1,0 +1,28 @@
+[server]
+enableStaticServing = true
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "app/static/Pretendard-Regular.otf"
+style = "normal"
+weight = 400
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "app/static/Pretendard-SemiBold.otf"
+style = "normal"
+weight = 600
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "app/static/Pretendard-Bold.otf"
+style = "normal"
+weight = 700
+
+[theme]
+base = "light"
+primaryColor = "#1F7165"
+backgroundColor = "#F2F4F1"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#202C28"
+font = "Pretendard"

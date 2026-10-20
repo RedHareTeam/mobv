@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+.streamlit/secrets.toml
+.venv/
+output/*
+!output/openai/
+output/openai/*
+!output/openai/classified_voc.csv
+output/openai/reviewed_voc.accidental-approval-backup.csv

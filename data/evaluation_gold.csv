@@ -1,0 +1,21 @@
+voc_id,gold_category,gold_product_area,gold_priority,gold_owner,gold_sla,gold_review_flags,gold_needs_review,gold_reason
+EVAL-001,BUG,AUTH,P0,DEVELOPMENT,즉시 확인,HIGH_PRIORITY,true,다수 사용자의 로그인 흐름이 전면 중단됨
+EVAL-002,POLICY,HISTORY,P0,POLICY_SECURITY,즉시 확인,HIGH_PRIORITY|PRIVACY_SECURITY,true,다른 약속의 방문 메모와 위치가 노출됨
+EVAL-003,BUG,APPOINTMENT,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,새 약속 저장 결과가 나타나지 않아 핵심 흐름이 차단됨
+EVAL-004,BUG,DATE_COORDINATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,참여자들의 후보 날짜 데이터가 모두 유실됨
+EVAL-005,BUG,MAP_LOCATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,저장한 위치 원이 재진입 후 유실됨
+EVAL-006,BUG,RECOMMENDATION,P2,DEVELOPMENT,3영업일 이내,,false,교집합 밖 장소가 잘못 추천됨
+EVAL-007,BUG,VOTING,P2,DEVELOPMENT,3영업일 이내,,false,iOS 화면은 멈추지만 웹에서 우회 가능
+EVAL-008,BUG,VOTING,P1,DEVELOPMENT,당일,HIGH_PRIORITY,true,한 번 확정한 장소가 최종 결과에 중복 저장됨
+EVAL-009,ACCOUNT,AUTH,P3,OPERATIONS,5영업일 이내,,false,인증 링크 재발급 방법 문의
+EVAL-010,USABILITY,COMMON,P3,DESIGN_UX,5영업일 이내,,false,글자 크기로 인해 가독성이 낮음
+EVAL-011,REQUEST,APPOINTMENT,P3,PRODUCT,5영업일 이내,,false,약속 결과 공유 링크 기능 요청
+EVAL-012,REQUEST,HISTORY,P3,PRODUCT,5영업일 이내,,false,방문 메모 내보내기 기능 요청
+EVAL-013,INFORMATION,MAP_LOCATION,P3,OPERATIONS,5영업일 이내,,false,현재 위치로 지도 재정렬하는 사용법 문의
+EVAL-014,ETC,COMMON,P3,NEEDS_TRIAGE,5영업일 이내,AMBIGUOUS,true,어떤 결과가 이상한지 특정할 수 없음
+EVAL-015,POLICY,AUTH,P3,POLICY_SECURITY,5영업일 이내,PRIVACY_SECURITY|PERSONAL_DATA,true,계정 삭제 후 위치 기록 보관 기준과 가상 이메일 형식 포함
+EVAL-016,BUG,DATE_COORDINATION,P1,DEVELOPMENT,당일,HIGH_PRIORITY|MULTI_ISSUE,true,날짜 투표 저장 실패와 지도 장애가 약속 확정을 막음
+EVAL-017,BUG,HISTORY,P2,DEVELOPMENT,3영업일 이내,PROMPT_INJECTION,true,메모 저장 실패 문의에 분류 지시 변경 문장 포함
+EVAL-018,INFORMATION,DATE_COORDINATION,P3,OPERATIONS,5영업일 이내,,false,날짜 확정 권한을 묻는 사용법 문의
+EVAL-019,POLICY,APPOINTMENT,P0,POLICY_SECURITY,즉시 확인,HIGH_PRIORITY|PRIVACY_SECURITY,true,초대받지 않은 사용자가 비공개 약속 데이터에 접근함
+EVAL-020,USABILITY,RECOMMENDATION,P3,DESIGN_UX,5영업일 이내,,false,추천 카드의 정보 구분이 어려움
