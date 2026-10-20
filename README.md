@@ -81,6 +81,6 @@ Day 3에서 확인한 정책 경계는 [작업 메모](docs/day3-notes.md), Day 
 
 ## Streamlit Community Cloud 데모
 
-배포 준비 대상은 저장소 `RedHareTeam/mobv`의 `voc-ops` 브랜치이며, 진입 파일은 `dashboard.py`다. 브랜치와 배포 URL은 아직 준비 중이다. Streamlit Community Cloud에서 앱을 만들 때 이 저장소·브랜치·진입 파일을 선택하고, 공개 범위와 접근 권한을 확인한다.
+배포 준비 대상은 비공개 저장소 `RedHareTeam/mobv`의 `voc-ops` 브랜치이며, 진입 파일은 `dashboard.py`다. 브랜치는 2026-10-20에 준비했다. 배포 URL은 아직 없다. Streamlit Community Cloud에서 앱을 만들 때 이 저장소·브랜치·진입 파일을 선택하고, 공개 범위와 접근 권한을 확인한다.
 
 기존 30건의 가상 VOC와 17건의 검토 대기 결과를 화면에서 살펴보는 데 API 키는 필요하지 않다. 새 CSV의 **AI 분류**를 활성화할 때만 앱 설정의 Secrets에 `OPENAI_API_KEY`와 `OPENAI_MODEL`을 추가한다. 데모 화면에는 가상 데이터만 사용한다. 업로드·검토 결과는 실행 환경의 임시 파일에 저장되므로 재시작·재배포 후 보존을 보장하지 않으며, 이 서비스는 실제 운영용이 아니다.

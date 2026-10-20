@@ -17,6 +17,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @unittest.skipUnless(importlib.util.find_spec("streamlit"), "Streamlit is not installed")
 class DashboardTests(unittest.TestCase):
+    def test_upload_page_explains_demo_data_and_temporary_storage(self) -> None:
+        from streamlit.testing.v1 import AppTest
+
+        app = AppTest.from_string("import dashboard\ndashboard.main()", default_timeout=20).run()
+        self.assertFalse(app.exception)
+        menu = next(radio for radio in app.radio if radio.label == "메뉴")
+        menu.set_value("CSV 가져오기").run()
+        self.assertFalse(app.exception)
+        warnings = "\n".join(item.value for item in app.warning)
+        self.assertIn("가상 데모 CSV만 업로드하세요", warnings)
+        self.assertIn("재시작이나 재배포 후 보존되지 않을 수 있습니다", warnings)
+
     def test_uploaded_csv_creates_separate_run_and_discards_raw_copy(self) -> None:
         import dashboard
 
