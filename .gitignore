@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 *.log
+_workspace/
 
 # Generated VOC work. Keep only the synthetic demo input and its run log.
 output/*
