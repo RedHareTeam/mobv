@@ -17,3 +17,4 @@ output/*
 output/openai/*
 !output/openai/classified_voc.csv
 !output/openai/run_log.json
+!output/openai/weekly_report.md

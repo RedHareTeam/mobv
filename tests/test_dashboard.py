@@ -17,6 +17,32 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @unittest.skipUnless(importlib.util.find_spec("streamlit"), "Streamlit is not installed")
 class DashboardTests(unittest.TestCase):
+    def test_overview_and_report_download_render_for_demo(self) -> None:
+        from streamlit.testing.v1 import AppTest
+
+        setup = (
+            "from pathlib import Path\nimport dashboard\n"
+            "dashboard.SOURCE = dashboard.ROOT / 'output' / 'openai' / 'classified_voc.csv'\n"
+            "dashboard.REVIEWED = dashboard.ROOT / 'output' / 'openai' / 'reviewed_voc.csv'\n"
+        )
+        app = AppTest.from_string(
+            setup + "dashboard.render_overview(dashboard.SOURCE, dashboard.REVIEWED)",
+            default_timeout=20,
+        ).run()
+        self.assertFalse(app.exception)
+        self.assertTrue(any("유형별 의견" in item.value for item in app.markdown))
+        self.assertTrue(any("우선순위별 의견" in item.value for item in app.markdown))
+        self.assertTrue(any("먼저 확인할 의견" in item.value for item in app.markdown))
+        self.assertTrue(any("접수 패턴" in item.value for item in app.markdown))
+        self.assertTrue(any("제품 영역별 의견" in item.value for item in app.markdown))
+
+        history = AppTest.from_string(
+            setup + "dashboard.render_history(dashboard.available_batches())",
+            default_timeout=20,
+        ).run()
+        self.assertFalse(history.exception)
+        self.assertTrue(any("결과 내보내기" in item.value for item in history.markdown))
+
     def test_upload_page_explains_demo_data_and_temporary_storage(self) -> None:
         from streamlit.testing.v1 import AppTest
 

@@ -12,6 +12,7 @@ from uuid import uuid4
 import streamlit as st
 
 from openai_adapter import OpenAIClassifier, config_value
+from reports import current_value, render_weekly_report, summarize
 from review_ops import ReviewError, apply_decision, load_session, pending_rows, save_results
 from voc_ops import CATEGORIES, OWNERS, SLA, InputError, load_input, run
 
@@ -279,6 +280,105 @@ def display_time(value: str) -> str:
         return value
 
 
+def distribution_html(counts: dict[str, int], codes: list[str], labels: dict[str, str]) -> str:
+    largest = max((counts.get(code, 0) for code in codes), default=1) or 1
+    rows = []
+    for code in codes:
+        count = counts.get(code, 0)
+        width = 100 * count / largest
+        tone = "urgent" if code in {"P0", "P1"} else "normal"
+        rows.append(
+            f'<div class="distribution-row"><span class="distribution-label">{escape(display(code, labels))}</span>'
+            f'<div class="distribution-track" aria-hidden="true">'
+            f'<span class="distribution-fill {tone}" style="width:{width:.1f}%"></span></div>'
+            f'<strong class="distribution-count">{count}건</strong></div>'
+        )
+    return '<div class="distribution-list">' + "".join(rows) + "</div>"
+
+
+def render_overview(source: Path, reviewed_path: Path) -> None:
+    if not source.exists():
+        st.info("분류 결과가 없습니다. CSV 가져오기에서 새 작업을 시작하세요.")
+        return
+    try:
+        rows = load_session(source, reviewed_path)
+    except (OSError, ReviewError) as exc:
+        st.error(f"분류 결과를 열 수 없습니다: {exc}")
+        return
+    info = summarize(rows)
+    st.html(f"""
+      <section class="overview-summary" aria-label="운영 현황 요약">
+        <div><span>전체 의견</span><strong>{info['total']}건</strong></div>
+        <div><span>즉시·당일 확인</span><strong>{info['high_priority']}건</strong></div>
+        <div><span>사람 검토 대기</span><strong>{info['pending']}건</strong></div>
+        <div><span>분류 실패</span><strong>{info['failed']}건</strong></div>
+      </section>
+    """)
+    st.caption("사람 검토가 끝나지 않은 항목은 운영 기준 적용 후의 잠정 분류로 집계합니다. 정확도 수치가 아닙니다.")
+
+    category_col, priority_col = st.columns(2, gap="small")
+    with category_col:
+        with st.container(border=True, key="category_distribution"):
+            st.markdown("## 유형별 의견")
+            st.html(distribution_html(info["categories"],
+                                      [*sorted(CATEGORIES), "UNCLASSIFIED"],
+                                      {**CATEGORY_LABELS, "UNCLASSIFIED": "미분류"}))
+    with priority_col:
+        with st.container(border=True, key="priority_distribution"):
+            st.markdown("## 우선순위별 의견")
+            priority_labels = {**{code: display_priority(code) for code in SLA},
+                               "UNCLASSIFIED": "미분류"}
+            st.html(distribution_html(info["priorities"], [*SLA, "UNCLASSIFIED"], priority_labels))
+
+    st.markdown("## 접수 패턴")
+    st.caption("선택한 작업의 가상 데이터 한 묶음만 집계합니다. 날짜·채널 차이를 실제 운영 추세로 해석할 수는 없습니다.")
+    trend_col, area_col = st.columns(2, gap="small")
+    with trend_col:
+        with st.container(border=True, key="date_distribution"):
+            st.markdown("### 접수일별 건수")
+            st.html(distribution_html(info["by_date"], sorted(info["by_date"]), {}))
+    with area_col:
+        with st.container(border=True, key="area_distribution"):
+            st.markdown("### 제품 영역별 의견")
+            st.dataframe([
+                {"제품 영역": display(area, AREA_LABELS), "전체": count,
+                 "P0·P1": info["area_urgent"][area]}
+                for area, count in sorted(info["areas"].items(),
+                                          key=lambda item: (-item[1], item[0]))
+            ], hide_index=True, width="stretch")
+        with st.container(border=True, key="channel_distribution"):
+            st.markdown("### 접수 채널별 의견")
+            st.html(distribution_html(info["channels"],
+                                      sorted(info["channels"], key=lambda code: (-info["channels"][code], code)),
+                                      CHANNEL_LABELS))
+
+    with st.container(border=True, key="overview_urgent"):
+        st.markdown("## 먼저 확인할 의견")
+        st.caption("P0·P1 순서로 표시합니다. 최종 판단은 검토 작업에서 진행합니다.")
+        urgent = info["urgent"]
+        if urgent:
+            st.dataframe([
+                {"ID": row["voc_id"], "요약": row["summary"],
+                 "우선순위": current_value(row, "priority"),
+                 "유형": display(current_value(row, "category"), CATEGORY_LABELS),
+                 "검토 상태": "검토 대기" if row["review_status"] == "PENDING" else "확인 완료"}
+                for row in urgent
+            ], hide_index=True, width="stretch")
+        else:
+            st.info("즉시·당일 확인할 의견이 없습니다.")
+
+    with st.expander(f"전체 분류 결과 {info['total']}건 보기"):
+        st.dataframe([
+            {"ID": row["voc_id"], "요약": row["summary"],
+             "유형": display(current_value(row, "category"), CATEGORY_LABELS),
+             "우선순위": current_value(row, "priority") or "미분류",
+             "담당": display(current_value(row, "owner"), OWNER_LABELS),
+             "처리기한": row["final_sla"] or row["rule_sla"] or "확인 필요",
+             "검토 상태": "검토 대기" if row["review_status"] == "PENDING" else "확인 완료"}
+            for row in rows
+        ], hide_index=True, width="stretch")
+
+
 def classifier_label(model_name: str) -> str:
     if model_name == "heuristic-draft-v0":
         return "규칙 초안"
@@ -414,7 +514,7 @@ def render_history(batches: dict[str, tuple[Path, Path]]) -> None:
         with st.container(border=True, key="export_panel"):
             st.markdown("## 결과 내보내기")
             st.caption(batch_label(batch_id))
-            export_col1, export_col2 = st.columns(2)
+            export_col1, export_col2, export_col3 = st.columns(3)
             export_col1.download_button("자동 분류 결과 CSV", source.read_bytes(),
                                         file_name="classified_voc.csv", mime="text/csv",
                                         use_container_width=True)
@@ -422,11 +522,25 @@ def render_history(batches: dict[str, tuple[Path, Path]]) -> None:
                 export_col2.download_button("사람 검토 결과 CSV", reviewed_path.read_bytes(),
                                             file_name="reviewed_voc.csv", mime="text/csv",
                                             use_container_width=True)
+            log_path = source.with_name("run_log.json")
+            if log_path.exists():
+                try:
+                    report = render_weekly_report(
+                        load_session(source, reviewed_path),
+                        json.loads(log_path.read_text(encoding="utf-8")),
+                    )
+                except (OSError, ValueError, ReviewError) as exc:
+                    st.warning(f"운영 요약을 만들 수 없습니다: {exc}")
+                else:
+                    export_col3.download_button("운영 요약 Markdown", report.encode("utf-8"),
+                                                file_name="weekly_report.md", mime="text/markdown",
+                                                use_container_width=True)
 
 
 def render_header(page: str, batch_id: str) -> None:
     subtitles = {
         "검토 작업": "분류 결과를 확인하고 승인하거나 수정합니다.",
+        "운영 현황": "유형과 우선순위를 한눈에 보고 먼저 확인할 의견을 찾습니다.",
         "CSV 가져오기": "CSV 파일을 올려 새 분류 작업을 시작합니다.",
         "실행 기록": "작업별 처리 결과와 검토 진행 상태를 확인합니다.",
     }
@@ -457,7 +571,7 @@ def main() -> None:
         st.caption("VOC 운영 센터 · 가상 데이터 데모")
         if "navigate_to" in st.session_state:
             st.session_state["page"] = st.session_state.pop("navigate_to")
-        page = st.radio("메뉴", ["검토 작업", "CSV 가져오기", "실행 기록"], key="page",
+        page = st.radio("메뉴", ["검토 작업", "운영 현황", "CSV 가져오기", "실행 기록"], key="page",
                         label_visibility="collapsed")
         st.divider()
         if "next_batch" in st.session_state:
@@ -470,7 +584,9 @@ def main() -> None:
     render_header(page, batch_id)
     if "last_import" in st.session_state:
         st.success(st.session_state.pop("last_import"))
-    if page == "CSV 가져오기":
+    if page == "운영 현황":
+        render_overview(*batches[batch_id])
+    elif page == "CSV 가져오기":
         render_import()
     elif page == "실행 기록":
         render_history(batches)

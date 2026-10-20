@@ -299,4 +299,7 @@ def run(
         "errors": errors,
     }
     (output_dir / "run_log.json").write_text(json.dumps(log, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    from reports import write_weekly_report
+
+    write_weekly_report(output_dir / "weekly_report.md", rows, log)
     return log

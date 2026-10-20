@@ -247,6 +247,34 @@ hr { border-color: var(--mobv-border); margin: 8px 0; }
 }
 .history-mobile { display: none; }
 
+/* Overview uses a single ledger strip and plain bars for quick scanning. */
+.overview-summary {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px 0 20px; background: var(--mobv-surface);
+  border: 1px solid var(--mobv-border); border-radius: var(--mobv-radius);
+}
+.overview-summary > div { padding: 18px 22px; min-width: 0; }
+.overview-summary > div + div { border-left: 1px solid var(--mobv-border); }
+.overview-summary span {
+  display: block; color: var(--mobv-muted); font-size: 13px; font-weight: 600;
+  margin-bottom: 6px;
+}
+.overview-summary strong { color: var(--mobv-title); font-size: 27px; line-height: 1.2; }
+.overview-summary .urgent-number { color: var(--mobv-urgent); }
+.st-key-category_distribution, .st-key-priority_distribution,
+.st-key-date_distribution, .st-key-area_distribution, .st-key-channel_distribution,
+.st-key-overview_urgent { padding: 22px !important; }
+.distribution-list { display: grid; gap: 14px; margin: 16px 0 4px; }
+.distribution-row {
+  display: grid; grid-template-columns: minmax(90px, 1fr) minmax(80px, 2fr) 34px;
+  align-items: center; gap: 12px; color: var(--mobv-body); font-size: 14px;
+}
+.distribution-label { overflow-wrap: anywhere; }
+.distribution-track { height: 8px; border-radius: 4px; background: var(--mobv-canvas); overflow: hidden; }
+.distribution-fill { display: block; height: 100%; background: var(--mobv-action); border-radius: 4px; }
+.distribution-fill.urgent { background: var(--mobv-urgent); }
+.distribution-count { color: var(--mobv-title); font-weight: 650; text-align: right; }
+
 /* Native inputs retain labels, disabled states and visible keyboard focus. */
 [data-testid="stSelectbox"] [data-baseweb="select"] > div,
 [data-testid="stTextArea"] [data-baseweb="textarea"] {
@@ -279,6 +307,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
   .st-key-import_guide, .st-key-import_action, .st-key-export_panel { padding: 18px !important; }
   .st-key-queue_panel { padding-left: 22px !important; padding-right: 22px !important; }
   .work-status { gap: 8px 16px; }
+  .overview-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-summary > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--mobv-border); }
+  .overview-summary > div:nth-child(4) { border-top: 1px solid var(--mobv-border); }
 }
 @media (max-width: 640px) {
   .block-container { width: 100%; min-width: 0; padding: 4rem 1rem 2rem; }
@@ -288,7 +319,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
     min-width: 0 !important; flex: 0 0 auto !important;
   }
   .st-key-queue_panel, .st-key-detail_panel,
-  .st-key-import_guide, .st-key-import_action, .st-key-export_panel {
+  .st-key-import_guide, .st-key-import_action, .st-key-export_panel,
+  .st-key-category_distribution, .st-key-priority_distribution,
+  .st-key-date_distribution, .st-key-area_distribution, .st-key-channel_distribution,
+  .st-key-overview_urgent {
     box-sizing: border-box; width: calc(100vw - 2rem) !important;
     max-width: calc(100vw - 2rem) !important; min-width: 0 !important;
   }
@@ -323,6 +357,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
   .history-entry dl div { display: flex; gap: 5px; font-size: 13px; }
   .history-entry dt { color: var(--mobv-muted); }
   .history-entry dd { color: var(--mobv-body); font-weight: 600; margin: 0; }
+  .overview-summary > div { padding: 15px; }
+  .overview-summary strong { font-size: 23px; }
+  .distribution-row { grid-template-columns: minmax(72px, 1fr) minmax(60px, 2fr) 28px; gap: 8px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
