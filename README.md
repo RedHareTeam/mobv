@@ -89,6 +89,6 @@ Day 3에서 확인한 정책 경계는 [작업 메모](docs/day3-notes.md), Day 
 
 ## Streamlit Community Cloud 데모
 
-데모 주소는 [mobv-voc-op.streamlit.app](https://mobv-voc-op.streamlit.app/)이다. 비공개 저장소 `RedHareTeam/mobv`의 `voc-ops` 브랜치에서 `dashboard.py`를 진입 파일로 배포했다. 2026-10-20에 주소의 HTTP 응답과 사용자 브라우저의 대시보드 제목을 확인했다. 접근 범위와 배포 URL에서의 실제 화면 동작은 추가 확인이 필요하다.
+데모 주소는 [mobv-voc-op.streamlit.app](https://mobv-voc-op.streamlit.app/)이다. 비공개 저장소 `RedHareTeam/mobv`의 `voc-ops` 브랜치에서 `dashboard.py`를 진입 파일로 배포했다. 2026-10-20에 원격 브랜치의 새 커밋을 확인했고, 비로그인 요청이 Streamlit 로그인으로 이동하는 것도 확인했다. 실제 화면의 배포 갱신 상태와 로그인 후 동작은 접근 권한이 있는 계정에서 확인해야 한다.
 
 기존 30건의 가상 VOC와 17건의 검토 대기 결과를 화면에서 살펴보는 데 API 키는 필요하지 않다. 새 CSV의 **AI 분류**를 활성화할 때만 앱 설정의 Secrets에 `OPENAI_API_KEY`와 `OPENAI_MODEL`을 추가한다. 데모 화면에는 가상 데이터만 사용한다. 업로드·검토 결과는 실행 환경의 임시 파일에 저장되므로 재시작·재배포 후 보존을 보장하지 않으며, 이 서비스는 실제 운영용이 아니다.
