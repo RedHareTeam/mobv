@@ -109,11 +109,11 @@ def render_review(source: Path, reviewed_path: Path) -> None:
     approved = sum(row["review_status"] == "APPROVED" and row["needs_review"] == "true" for row in rows)
     modified = sum(row["review_status"] == "MODIFIED" for row in rows)
     st.html(f"""
-        <section class="work-status" aria-label="현재 작업 현황">
-          <strong>확인할 의견 {len(pending)}건</strong>
-          <span>전체 {len(rows)}건</span>
-          <span>직접 승인 {approved}건</span>
-          <span>직접 수정 {modified}건</span>
+        <section class="overview-summary" aria-label="현재 작업 현황">
+          <div><span>확인할 의견</span><strong>{len(pending)}</strong></div>
+          <div><span>전체</span><strong>{len(rows)}</strong></div>
+          <div><span>직접 승인</span><strong>{approved}</strong></div>
+          <div><span>직접 수정</span><strong>{modified}</strong></div>
         </section>
     """)
     if "last_saved" in st.session_state:
@@ -130,11 +130,11 @@ def render_review(source: Path, reviewed_path: Path) -> None:
     with queue_col:
         with st.container(border=True, key="queue_panel"):
             st.markdown("## 의견 목록")
-            st.caption("우선순위가 높은 순")
+            st.caption(f"우선순위가 높은 순 · 전체 {len(pending)}건, 스크롤해서 확인")
             queue_by_id = {item["voc_id"]: item for item in pending}
             if st.session_state.get("selected_voc") not in queue_by_id:
                 st.session_state["selected_voc"] = pending[0]["voc_id"]
-            with st.container(height=464, border=False, key="queue_list"):
+            with st.container(height=640, border=False, key="queue_list"):
                 selected_id = st.radio(
                     "검토할 의견", list(queue_by_id), label_visibility="collapsed",
                     format_func=lambda voc_id: queue_title(queue_by_id[voc_id]),
@@ -164,11 +164,9 @@ def render_review(source: Path, reviewed_path: Path) -> None:
                   <span>접수일 {escape(row['received_at'])}</span>
                   <span>{escape(display(row['channel'], CHANNEL_LABELS))} ·
                     {escape(display(row['platform'], PLATFORM_LABELS))}</span>
+                  <span>제품 영역 {escape(display(row['product_area'], AREA_LABELS))}</span>
+                  <span>확인 이유 {escape(display_flags(row['review_flags']))}</span>
                 </div>
-                <dl class="detail-facts">
-                  <div><dt>제품 영역</dt><dd>{escape(display(row['product_area'], AREA_LABELS))}</dd></div>
-                  <div><dt>확인 이유</dt><dd>{escape(display_flags(row['review_flags']))}</dd></div>
-                </dl>
               </section>
             """)
             draft_title = "규칙 초안" if row["model_name"] == "heuristic-draft-v0" else "AI 분류 초안"
@@ -268,7 +266,7 @@ def available_batches() -> dict[str, tuple[Path, Path]]:
 
 
 def batch_label(batch_id: str) -> str:
-    return "개발용 예시 VOC" if batch_id == "development" else f"CSV 업로드 · {batch_id}"
+    return "기본 VOC" if batch_id == "development" else f"CSV 업로드 · {batch_id}"
 
 
 def display_time(value: str) -> str:
@@ -544,7 +542,7 @@ def render_header(page: str, batch_id: str) -> None:
         "CSV 가져오기": "CSV 파일을 올려 새 분류 작업을 시작합니다.",
         "실행 기록": "작업별 처리 결과와 검토 진행 상태를 확인합니다.",
     }
-    context = "가상 데이터 데모" if page == "CSV 가져오기" else f"현재 작업 · {batch_label(batch_id)}"
+    context = "" if page == "CSV 가져오기" else f"현재 작업 · {batch_label(batch_id)}"
     st.html(f"""
         <div class="mobv-header">
           <div class="mobv-brand">
@@ -568,7 +566,7 @@ def main() -> None:
                 '<img class="mobv-wordmark mobv-wordmark-color" src="app/static/mobv-wordmark.png" '
                 'width="150" height="47" alt="" aria-hidden="true">'
                 '</span>')
-        st.caption("VOC 운영 센터 · 가상 데이터 데모")
+        st.caption("VOC 운영 센터")
         if "navigate_to" in st.session_state:
             st.session_state["page"] = st.session_state.pop("navigate_to")
         page = st.radio("메뉴", ["검토 작업", "운영 현황", "CSV 가져오기", "실행 기록"], key="page",
